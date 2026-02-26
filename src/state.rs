@@ -1,6 +1,12 @@
-use std::path::PathBuf;
-use eframe::egui::{Vec2, TextureHandle};
 use crate::core::{CalibPoint, DataPoint};
+use eframe::egui::{Color32, TextureHandle, Vec2};
+use std::path::PathBuf;
+
+#[derive(Clone)]
+pub struct PointGroup {
+    pub name: String,
+    pub color: Color32,
+}
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum AppMode {
@@ -11,20 +17,22 @@ pub enum AppMode {
 
 pub struct AppState {
     pub mode: AppMode,
-    
+
     // Image loading
     pub image_path: Option<PathBuf>,
     pub texture: Option<TextureHandle>,
     pub img_size: Vec2,
-    
+
     // Viewport transform (Panning & Zooming)
     pub pan: Vec2,
     pub zoom: f32,
-    
-    // Points
+
+    // Points & Groups
     pub calib_pts: Vec<CalibPoint>,
     pub data_pts: Vec<DataPoint>,
-    
+    pub groups: Vec<PointGroup>,
+    pub active_group_idx: usize,
+
     // Calibration Settings
     pub x1_val: String,
     pub x2_val: String,
@@ -32,7 +40,7 @@ pub struct AppState {
     pub y2_val: String,
     pub log_x: bool,
     pub log_y: bool,
-    
+
     // Interaction state
     pub dragging_calib_idx: Option<usize>,
     pub dragging_data_idx: Option<usize>,
@@ -53,6 +61,11 @@ impl Default for AppState {
             zoom: 1.0,
             calib_pts: Vec::new(),
             data_pts: Vec::new(),
+            groups: vec![PointGroup {
+                name: "Group 1".to_string(),
+                color: Color32::from_rgb(0xd7, 0x30, 0x27), // Palette 1
+            }],
+            active_group_idx: 0,
             x1_val: "0.0".to_string(),
             x2_val: "10.0".to_string(),
             y1_val: "0.0".to_string(),
