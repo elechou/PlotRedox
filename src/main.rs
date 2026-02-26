@@ -32,7 +32,11 @@ impl PlotDigitizerApp {
 
 impl eframe::App for PlotDigitizerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ui::draw_ui(&mut self.state, ctx);
+        let mut actions = Vec::new();
+        ui::draw_ui(&self.state, ctx, &mut actions);
+        for action in actions {
+            self.state.update(action);
+        }
     }
 }
 
@@ -48,3 +52,4 @@ fn main() -> eframe::Result<()> {
         Box::new(|cc| Ok(Box::new(PlotDigitizerApp::new(cc)))),
     )
 }
+pub mod action;

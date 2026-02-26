@@ -2,10 +2,11 @@ pub mod canvas;
 pub mod panel;
 pub mod toolbar;
 
+use crate::action::Action;
 use crate::state::AppState;
 use eframe::egui;
 
-pub fn draw_ui(state: &mut AppState, ctx: &egui::Context) {
+pub fn draw_ui(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
     // Top Panel: Unified Toolbar
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         ui.add_space(8.0);
@@ -14,18 +15,18 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context) {
             ui.add_space(20.0);
 
             if ui.button("Load Image").clicked() {
-                crate::ui::panel::load_image(state, ctx);
+                crate::ui::panel::load_image(ctx, actions);
             }
             if ui.button("Export CSV").clicked() {
-                crate::ui::panel::export_csv(state);
+                actions.push(Action::RequestExportCsv);
             }
         });
         ui.add_space(8.0);
     });
 
     // Left Sidebar for Control Panels
-    panel::draw_panel(state, ctx);
+    panel::draw_panel(state, ctx, actions);
 
     // Central Image Viewport Canvas & Toolbar
-    canvas::draw_canvas(state, ctx);
+    canvas::draw_canvas(state, ctx, actions);
 }

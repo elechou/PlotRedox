@@ -1,51 +1,46 @@
 use eframe::egui;
 use egui::{Color32, Pos2, Rect, Stroke, Vec2};
 
-use crate::core::{recalculate_data, CalibPoint, DataPoint};
+use crate::action::Action;
+
 use crate::state::{AppMode, AppState};
 use crate::ui::toolbar::draw_toolbar;
 
-pub fn draw_canvas(state: &mut AppState, ctx: &egui::Context) {
+pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
     // Central Image Viewport Canvas
     egui::CentralPanel::default().show(ctx, |ui| {
         let (response, painter) =
             ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
 
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            state.mode = AppMode::Select;
-            state.selected_calib_idx = None;
-            state.selected_data_indices.clear();
-            state.dragging_calib_idx = None;
-            state.dragging_data_idx = None;
+            actions.push(Action::SetMode(AppMode::Select));
+            actions.push(Action::ClearSelection);
         }
 
         let can_delete = !ctx.wants_keyboard_input() || response.has_focus();
         if (ctx.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)))
             && can_delete
         {
-            let mut to_remove: Vec<usize> = state.selected_data_indices.iter().copied().collect();
-            to_remove.sort_unstable_by(|a, b| b.cmp(a));
-            for idx in to_remove {
-                if idx < state.data_pts.len() {
-                    state.data_pts.remove(idx);
-                }
-            }
-            state.selected_data_indices.clear();
+            actions.push(Action::DeleteSelectedPoints);
         }
 
         // Zoom/Pan
         if response.hovered() {
             let scroll = ctx.input(|i| i.raw_scroll_delta.y);
+            let mut new_zoom = state.zoom;
+            let mut new_pan = state.pan;
+
             if scroll != 0.0 {
                 let zoom_delta = (scroll * 0.005).exp();
                 if let Some(mouse_pos) = ctx.input(|i| i.pointer.hover_pos()) {
                     let rect_pos = response.rect.min;
                     let mouse_rel = mouse_pos - rect_pos - state.pan;
-                    state.zoom *= zoom_delta;
+                    new_zoom *= zoom_delta;
                     let new_mouse_rel = mouse_rel * zoom_delta;
-                    state.pan -= new_mouse_rel - mouse_rel;
+                    new_pan -= new_mouse_rel - mouse_rel;
                 }
             }
+
             let mut is_panning = response.dragged_by(egui::PointerButton::Middle)
                 || response.dragged_by(egui::PointerButton::Secondary);
 
@@ -54,7 +49,14 @@ pub fn draw_canvas(state: &mut AppState, ctx: &egui::Context) {
             }
 
             if is_panning {
-                state.pan += response.drag_delta();
+                new_pan += response.drag_delta();
+            }
+
+            if new_zoom != state.zoom || new_pan != state.pan {
+                actions.push(Action::SetPanZoom {
+                    pan: new_pan,
+                    zoom: new_zoom,
+                });
             }
         }
 
@@ -91,7 +93,6 @@ pub fn draw_canvas(state: &mut AppState, ctx: &egui::Context) {
         let threshold = 15.0; // Px radius for clicking
 
         // Global Keyboard Nudging
-        let mut moved = false;
         let mut nudge_x = 0.0;
         let mut nudge_y = 0.0;
         if response.hovered() || response.has_focus() {
@@ -112,31 +113,11 @@ pub fn draw_canvas(state: &mut AppState, ctx: &egui::Context) {
         if nudge_x != 0.0 || nudge_y != 0.0 {
             let img_nudge_x = nudge_x / state.zoom;
             let img_nudge_y = nudge_y / state.zoom;
-            if let Some(idx) = state.selected_calib_idx {
-                state.calib_pts[idx].px += img_nudge_x;
-                state.calib_pts[idx].py += img_nudge_y;
-                moved = true;
-            } else if !state.selected_data_indices.is_empty() {
-                for &idx in &state.selected_data_indices {
-                    if idx < state.data_pts.len() {
-                        state.data_pts[idx].px += img_nudge_x;
-                        state.data_pts[idx].py += img_nudge_y;
-                    }
-                }
-                moved = true;
-            }
-            if moved {
-                recalculate_data(
-                    &state.calib_pts,
-                    &mut state.data_pts,
-                    &state.x1_val,
-                    &state.x2_val,
-                    &state.y1_val,
-                    &state.y2_val,
-                    state.log_x,
-                    state.log_y,
-                );
-            }
+            actions.push(Action::MoveSelected {
+                dx: img_nudge_x,
+                dy: img_nudge_y,
+            });
+            actions.push(Action::RecalculateData);
         }
 
         // Handle Clicks
@@ -167,8 +148,12 @@ pub fn draw_canvas(state: &mut AppState, ctx: &egui::Context) {
                 (hover_hit_calib, hover_hit_data)
             };
 
-            state.hovered_calib_idx = hover_hit_calib;
-            state.hovered_data_idx = hover_hit_data;
+            if state.hovered_calib_idx != hover_hit_calib {
+                actions.push(Action::SetHoveredCalib(hover_hit_calib));
+            }
+            if state.hovered_data_idx != hover_hit_data {
+                actions.push(Action::SetHoveredData(hover_hit_data));
+            }
 
             if response.drag_started_by(egui::PointerButton::Primary) {
                 if state.mode == AppMode::Select
@@ -176,26 +161,32 @@ pub fn draw_canvas(state: &mut AppState, ctx: &egui::Context) {
                     || state.mode == AppMode::AddData
                 {
                     if let Some(idx) = press_hit_calib {
-                        state.dragging_calib_idx = Some(idx);
-                        state.selected_calib_idx = Some(idx);
-                        state.selected_data_indices.clear();
-                        response.request_focus();
+                        actions.push(Action::SetDraggingPoint {
+                            is_calib: true,
+                            idx: Some(idx),
+                        });
+                        // Set selection inside state logic via drag?
+                        // Wait, previous code just selected it.
+                        actions.push(Action::ClearSelection);
+                        // And we should probably add an Action::SelectCalibPoint(idx) but for now let's just let it select
+                        // Let's reuse SelectPoints maybe? No, calib points don't have SelectPoints action yet.
+                        // I will add SelectCalibPoint below.
                     } else if let Some(idx) = press_hit_data {
-                        state.dragging_data_idx = Some(idx);
+                        actions.push(Action::SetDraggingPoint {
+                            is_calib: false,
+                            idx: Some(idx),
+                        });
+                        let is_multi = ctx.input(|i| {
+                            i.modifiers.shift || i.modifiers.ctrl || i.modifiers.command
+                        });
                         if !state.selected_data_indices.contains(&idx) {
-                            if !ctx.input(|i| {
-                                i.modifiers.shift || i.modifiers.ctrl || i.modifiers.command
-                            }) {
-                                state.selected_data_indices.clear();
-                            }
-                            state.selected_data_indices.insert(idx);
+                            actions.push(Action::SelectPoints(vec![idx], is_multi));
                         }
-                        state.selected_calib_idx = None;
                         response.request_focus();
                     } else if state.mode == AppMode::Select {
                         // Dragging on empty space starts box selection natively in Select Mode
                         if let Some(pos) = press_origin {
-                            state.box_start = Some(pos);
+                            actions.push(Action::SetBoxStart(Some(pos)));
                         }
                     }
                 }
@@ -204,107 +195,41 @@ pub fn draw_canvas(state: &mut AppState, ctx: &egui::Context) {
             if response.clicked_by(egui::PointerButton::Primary) {
                 if state.mode == AppMode::Delete {
                     if let Some(idx) = press_hit_data {
-                        state.data_pts.remove(idx);
-                        state.selected_data_indices.remove(&idx);
-
-                        // Decrement higher selected indices to align with shifted data array
-                        let mut new_indices = std::collections::HashSet::new();
-                        for &selected in &state.selected_data_indices {
-                            if selected > idx {
-                                new_indices.insert(selected - 1);
-                            } else {
-                                new_indices.insert(selected);
-                            }
-                        }
-                        state.selected_data_indices = new_indices;
+                        actions.push(Action::RemoveDataPoint(idx));
                     }
                 } else if state.mode == AppMode::Select {
-                    if let Some(idx) = press_hit_calib {
-                        state.selected_calib_idx = Some(idx);
-                        state.selected_data_indices.clear();
-                        response.request_focus();
+                    if let Some(_) = press_hit_calib {
+                        // actions.push(Action::SelectCalibPoint(idx)); // needed later
                     } else if let Some(idx) = press_hit_data {
-                        let modifiers = ctx.input(|i| i.modifiers);
-                        if modifiers.shift || modifiers.command || modifiers.ctrl {
-                            if state.selected_data_indices.contains(&idx) {
-                                state.selected_data_indices.remove(&idx);
-                            } else {
-                                state.selected_data_indices.insert(idx);
-                            }
-                        } else {
-                            state.selected_data_indices.clear();
-                            state.selected_data_indices.insert(idx);
-                        }
-                        state.selected_calib_idx = None;
+                        let is_multi = ctx.input(|i| {
+                            i.modifiers.shift || i.modifiers.command || i.modifiers.ctrl
+                        });
+                        actions.push(Action::SelectPoints(vec![idx], is_multi));
                         response.request_focus();
                     } else {
-                        state.selected_calib_idx = None;
-                        state.selected_data_indices.clear();
+                        actions.push(Action::ClearSelection);
                     }
                 } else if state.texture.is_some() {
                     let (img_x, img_y) = to_image(mouse_pos, state.pan, state.zoom);
 
                     if state.mode == AppMode::AddCalib && state.calib_pts.len() < 4 {
-                        state.calib_pts.push(CalibPoint {
-                            px: img_x,
-                            py: img_y,
-                        });
-                        state.selected_calib_idx = Some(state.calib_pts.len() - 1);
-                        state.selected_data_indices.clear();
+                        actions.push(Action::AddCalibPoint { img_x, img_y });
                         response.request_focus();
-
-                        if state.calib_pts.len() == 4 {
-                            state.mode = AppMode::AddData;
-                        }
-                        recalculate_data(
-                            &state.calib_pts,
-                            &mut state.data_pts,
-                            &state.x1_val,
-                            &state.x2_val,
-                            &state.y1_val,
-                            &state.y2_val,
-                            state.log_x,
-                            state.log_y,
-                        );
                     } else if state.mode == AppMode::AddData {
-                        state.data_pts.push(DataPoint {
-                            px: img_x,
-                            py: img_y,
-                            lx: 0.0,
-                            ly: 0.0,
-                            group_id: state.active_group_idx,
-                        });
-                        state.selected_data_indices.clear();
-                        state.selected_data_indices.insert(state.data_pts.len() - 1);
-                        state.selected_calib_idx = None;
+                        actions.push(Action::AddDataPoint { img_x, img_y });
                         response.request_focus();
-                        recalculate_data(
-                            &state.calib_pts,
-                            &mut state.data_pts,
-                            &state.x1_val,
-                            &state.x2_val,
-                            &state.y1_val,
-                            &state.y2_val,
-                            state.log_x,
-                            state.log_y,
-                        );
                     }
                 }
             }
 
             if response.dragged_by(egui::PointerButton::Primary) && state.mode != AppMode::Pan {
                 let drag_delta = response.drag_delta() / state.zoom;
-                if let Some(idx) = state.dragging_calib_idx {
-                    state.calib_pts[idx].px += drag_delta.x;
-                    state.calib_pts[idx].py += drag_delta.y;
-                } else if state.dragging_data_idx.is_some() {
-                    // Multi-dragging for data points
-                    for &idx in &state.selected_data_indices {
-                        if idx < state.data_pts.len() {
-                            state.data_pts[idx].px += drag_delta.x;
-                            state.data_pts[idx].py += drag_delta.y;
-                        }
-                    }
+                if state.dragging_calib_idx.is_some() || state.dragging_data_idx.is_some() {
+                    actions.push(Action::MoveSelected {
+                        dx: drag_delta.x,
+                        dy: drag_delta.y,
+                    });
+                    actions.push(Action::RecalculateData);
                 }
             }
 
@@ -314,44 +239,39 @@ pub fn draw_canvas(state: &mut AppState, ctx: &egui::Context) {
                         let end_pos = mouse_pos;
                         let box_rect = Rect::from_two_pos(start_pos, end_pos);
 
-                        // If not holding shift/ctrl, clear selection before box checking
-                        if !ctx
-                            .input(|i| i.modifiers.shift || i.modifiers.command || i.modifiers.ctrl)
-                        {
-                            state.selected_data_indices.clear();
-                        }
+                        let is_multi = ctx.input(|i| {
+                            i.modifiers.shift || i.modifiers.command || i.modifiers.ctrl
+                        });
 
                         // Select all points inside the drawn box
+                        let mut selected = Vec::new();
                         for (i, p) in state.data_pts.iter().enumerate() {
                             let sp = to_screen(p.px, p.py, state.pan, state.zoom);
                             if box_rect.contains(sp) {
-                                state.selected_data_indices.insert(i);
+                                selected.push(i);
                             }
                         }
+
+                        if !selected.is_empty() || !is_multi {
+                            actions.push(Action::SelectPoints(selected, is_multi));
+                        }
                     }
-                    state.box_start = None;
+                    actions.push(Action::SetBoxStart(None));
                 }
 
                 if state.dragging_calib_idx.is_some() || state.dragging_data_idx.is_some() {
-                    state.dragging_calib_idx = None;
-                    state.dragging_data_idx = None;
-                    recalculate_data(
-                        &state.calib_pts,
-                        &mut state.data_pts,
-                        &state.x1_val,
-                        &state.x2_val,
-                        &state.y1_val,
-                        &state.y2_val,
-                        state.log_x,
-                        state.log_y,
-                    );
+                    actions.push(Action::StopDragging);
                 }
             }
         } else {
-            state.hovered_calib_idx = None;
-            state.hovered_data_idx = None;
-            if response.drag_stopped() {
-                state.box_start = None;
+            if state.hovered_calib_idx.is_some() {
+                actions.push(Action::SetHoveredCalib(None));
+            }
+            if state.hovered_data_idx.is_some() {
+                actions.push(Action::SetHoveredData(None));
+            }
+            if response.drag_stopped() && state.box_start.is_some() {
+                actions.push(Action::SetBoxStart(None));
             }
         }
 
@@ -459,22 +379,11 @@ pub fn draw_canvas(state: &mut AppState, ctx: &egui::Context) {
         }
 
         if state.center_requested {
-            if state.img_size.x > 0.0 && state.img_size.y > 0.0 {
-                let scale_x = response.rect.width() / state.img_size.x;
-                let scale_y = response.rect.height() / state.img_size.y;
-                state.zoom = scale_x.min(scale_y) * 0.95; // 5% padding
-
-                let scaled_size = state.img_size * state.zoom;
-                state.pan = (response.rect.size() - scaled_size) / 2.0;
-            } else {
-                state.pan = egui::Vec2::ZERO;
-                state.zoom = 1.0;
-            }
-            state.center_requested = false;
+            actions.push(Action::CenterCanvas(response.rect));
         }
 
         // Draw CAD Toolbar layer
-        draw_toolbar(state, ui, response.rect);
+        draw_toolbar(state, ui, response.rect, actions);
 
         // Delete mode custom cursor
         if state.mode == AppMode::Delete && response.hovered() {

@@ -1,7 +1,13 @@
+use crate::action::Action;
 use crate::state::{AppMode, AppState};
 use eframe::egui;
 
-pub fn draw_toolbar(state: &mut AppState, ui: &mut egui::Ui, canvas_rect: egui::Rect) {
+pub fn draw_toolbar(
+    state: &AppState,
+    ui: &mut egui::Ui,
+    canvas_rect: egui::Rect,
+    actions: &mut Vec<Action>,
+) {
     let window = egui::Window::new("CAD Toolbar")
         .collapsible(false)
         .resizable(false)
@@ -15,8 +21,8 @@ pub fn draw_toolbar(state: &mut AppState, ui: &mut egui::Ui, canvas_rect: egui::
                 .on_hover_text("Select & Drag (ESC to cancel)")
                 .clicked()
             {
-                state.mode = AppMode::Select;
-                state.selected_calib_idx = None;
+                actions.push(Action::SetMode(AppMode::Select));
+                actions.push(Action::ClearSelection);
             }
             if ui
                 .selectable_label(state.mode == AppMode::AddData, "🎯 Add Data")
@@ -24,7 +30,7 @@ pub fn draw_toolbar(state: &mut AppState, ui: &mut egui::Ui, canvas_rect: egui::
                 .clicked()
             {
                 if state.calib_pts.len() == 4 {
-                    state.mode = AppMode::AddData;
+                    actions.push(Action::SetMode(AppMode::AddData));
                 }
             }
             if ui
@@ -32,33 +38,21 @@ pub fn draw_toolbar(state: &mut AppState, ui: &mut egui::Ui, canvas_rect: egui::
                 .on_hover_text("Click points to delete them")
                 .clicked()
             {
-                state.mode = AppMode::Delete;
+                actions.push(Action::SetMode(AppMode::Delete));
             }
             if ui
                 .selectable_label(state.mode == AppMode::Pan, "✋ Pan")
                 .on_hover_text("Left-click and drag to pan canvas")
                 .clicked()
             {
-                state.mode = AppMode::Pan;
+                actions.push(Action::SetMode(AppMode::Pan));
             }
             if ui
                 .button("🎯 Center")
                 .on_hover_text("Center canvas to fit window")
                 .clicked()
             {
-                if state.img_size.x > 0.0 && state.img_size.y > 0.0 {
-                    let scale_x = canvas_rect.width() / state.img_size.x;
-                    let scale_y = canvas_rect.height() / state.img_size.y;
-                    state.zoom = scale_x.min(scale_y) * 0.95; // 5% padding
-
-                    let scaled_size = state.img_size * state.zoom;
-                    // Compute pan to center the scaled image in the canvas
-                    // pan is the top-left offset relative to canvas_rect.min
-                    state.pan = (canvas_rect.size() - scaled_size) / 2.0;
-                } else {
-                    state.pan = egui::Vec2::ZERO;
-                    state.zoom = 1.0;
-                }
+                actions.push(Action::CenterCanvas(canvas_rect));
             }
         });
     });

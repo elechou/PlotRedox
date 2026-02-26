@@ -4,10 +4,10 @@ use rfd::FileDialog;
 use std::fs::File;
 use std::io::Write;
 
-use crate::core::recalculate_data;
+use crate::action::Action;
 use crate::state::{AppMode, AppState};
 
-pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
+pub fn draw_panel(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
     egui::SidePanel::left("left_panel")
         .resizable(false)
         .exact_width(320.0)
@@ -40,27 +40,17 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
                             btn = btn.fill(Color32::from_rgb(180, 50, 50));
                         }
                         if ui.add_sized([160.0, 30.0], btn).clicked() {
-                            state.mode = if state.mode == AppMode::AddCalib {
+                            actions.push(Action::SetMode(if state.mode == AppMode::AddCalib {
                                 AppMode::Select
                             } else {
                                 AppMode::AddCalib
-                            };
+                            }));
                         }
                         ui.label(format!("Points: {}/4", state.calib_pts.len()));
                     });
 
                     if ui.button("Clear Calib").clicked() {
-                        state.calib_pts.clear();
-                        recalculate_data(
-                            &state.calib_pts,
-                            &mut state.data_pts,
-                            &state.x1_val,
-                            &state.x2_val,
-                            &state.y1_val,
-                            &state.y2_val,
-                            state.log_x,
-                            state.log_y,
-                        );
+                        actions.push(Action::ClearCalib);
                     }
 
                     ui.add_space(10.0);
@@ -69,44 +59,32 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
                         .spacing([10.0, 10.0])
                         .show(ui, |ui| {
                             ui.label("X1 (Min):");
-                            ui.text_edit_singleline(&mut state.x1_val);
+                            let mut x1 = state.x1_val.clone();
+                            if ui.text_edit_singleline(&mut x1).changed() { actions.push(Action::UpdateCalibAxis("x1".to_string(), x1)); }
                             ui.end_row();
                             ui.label("X2 (Max):");
-                            ui.text_edit_singleline(&mut state.x2_val);
+                            let mut x2 = state.x2_val.clone();
+                            if ui.text_edit_singleline(&mut x2).changed() { actions.push(Action::UpdateCalibAxis("x2".to_string(), x2)); }
                             ui.end_row();
                             ui.label("Y1 (Min):");
-                            ui.text_edit_singleline(&mut state.y1_val);
+                            let mut y1 = state.y1_val.clone();
+                            if ui.text_edit_singleline(&mut y1).changed() { actions.push(Action::UpdateCalibAxis("y1".to_string(), y1)); }
                             ui.end_row();
                             ui.label("Y2 (Max):");
-                            ui.text_edit_singleline(&mut state.y2_val);
+                            let mut y2 = state.y2_val.clone();
+                            if ui.text_edit_singleline(&mut y2).changed() { actions.push(Action::UpdateCalibAxis("y2".to_string(), y2)); }
                             ui.end_row();
                         });
 
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
-                        if ui.checkbox(&mut state.log_x, "Log X").changed() {
-                            recalculate_data(
-                                &state.calib_pts,
-                                &mut state.data_pts,
-                                &state.x1_val,
-                                &state.x2_val,
-                                &state.y1_val,
-                                &state.y2_val,
-                                state.log_x,
-                                state.log_y,
-                            );
+                        let mut log_x = state.log_x;
+                        if ui.checkbox(&mut log_x, "Log X").changed() {
+                            actions.push(Action::UpdateLogScale(log_x, state.log_y));
                         }
-                        if ui.checkbox(&mut state.log_y, "Log Y").changed() {
-                            recalculate_data(
-                                &state.calib_pts,
-                                &mut state.data_pts,
-                                &state.x1_val,
-                                &state.x2_val,
-                                &state.y1_val,
-                                &state.y2_val,
-                                state.log_x,
-                                state.log_y,
-                            );
+                        let mut log_y = state.log_y;
+                        if ui.checkbox(&mut log_y, "Log Y").changed() {
+                            actions.push(Action::UpdateLogScale(state.log_x, log_y));
                         }
                     });
                 });
@@ -125,7 +103,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
 
                     ui.label(format!("Total Datapoints: {}", state.data_pts.len()));
 
-                    let palette = [
+                    let _palette = [
                         Color32::from_rgb(0xe4, 0x1a, 0x1c), // Red
                         Color32::from_rgb(0x37, 0x7e, 0xb8), // Blue
                         Color32::from_rgb(0x4d, 0xaf, 0x4a), // Green
@@ -135,16 +113,10 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
 
                     ui.horizontal(|ui| {
                         if ui.button("➕ Add Group").clicked() {
-                            let new_idx = state.groups.len();
-                            let col = palette[new_idx % palette.len()];
-                            state.groups.push(crate::state::PointGroup {
-                                name: format!("Group {}", new_idx + 1),
-                                color: col,
-                            });
-                            state.active_group_idx = new_idx;
+                            actions.push(Action::AddGroup);
                         }
                         if ui.button("Clear All Data").clicked() {
-                            state.data_pts.clear();
+                            actions.push(Action::ClearData);
                         }
                     });
 
@@ -152,12 +124,8 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
                     egui::ScrollArea::vertical()
                         .max_height(300.0)
                         .show(ui, |ui| {
-                            let mut to_remove_group = None;
-                            let mut to_remove_data = None;
-                            let mut move_point = None;
-
                             let num_groups = state.groups.len();
-                            for (g_idx, group) in state.groups.iter_mut().enumerate() {
+                            for (g_idx, group) in state.groups.iter().enumerate() {
                                 let frame = egui::Frame::NONE
                                     .inner_margin(4.0)
                                     .corner_radius(4.0)
@@ -172,24 +140,31 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
                                         ui.horizontal(|ui| {
                                             let mut is_active = state.active_group_idx == g_idx;
                                             if ui.toggle_value(&mut is_active, "🔴").on_hover_text("Set Active Group").clicked() {
-                                                state.active_group_idx = g_idx;
+                                                actions.push(Action::SetActiveGroup(g_idx));
                                             }
-                                            ui.color_edit_button_srgba(&mut group.color);
+                                            
+                                            let mut col = group.color;
+                                            if ui.color_edit_button_srgba(&mut col).changed() {
+                                                actions.push(Action::UpdateGroupColor(g_idx, col));
+                                            }
                                             
                                             let right_space = if num_groups > 1 { 24.0 /* trash */ + 50.0 /* assign */ + 60.0 /* count */ } else { 50.0 + 60.0 };
                                             let text_width = (ui.available_width() - right_space).max(40.0);
                                             
-                                            ui.add_sized(
+                                            let mut name = group.name.clone();
+                                            if ui.add_sized(
                                                 [text_width, 20.0],
-                                                egui::TextEdit::singleline(&mut group.name),
-                                            );
+                                                egui::TextEdit::singleline(&mut name),
+                                            ).changed() {
+                                                actions.push(Action::UpdateGroupName(g_idx, name));
+                                            }
 
                                             ui.with_layout(
                                                 egui::Layout::right_to_left(egui::Align::Center),
                                                 |ui| {
                                                     if num_groups > 1 {
                                                         if ui.button("🗑").on_hover_text("Delete Group").clicked() {
-                                                            to_remove_group = Some(g_idx);
+                                                            actions.push(Action::DeleteGroup(g_idx));
                                                         }
                                                     }
                                                     
@@ -197,7 +172,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
                                                     ui.add_enabled_ui(!state.selected_data_indices.is_empty(), |ui| {
                                                         if ui.button("Assign").on_hover_text("Assign selected points to this group").clicked() {
                                                             let payload: Vec<usize> = state.selected_data_indices.iter().copied().collect();
-                                                            move_point = Some((payload, g_idx));
+                                                            actions.push(Action::MovePointsToGroup { indices: payload, new_group_id: g_idx });
                                                         }
                                                     });
 
@@ -213,7 +188,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
                                     });
 
                                 if let Some(payload) = payload_opt {
-                                    move_point = Some((payload.to_vec(), g_idx));
+                                    actions.push(Action::MovePointsToGroup { indices: payload.to_vec(), new_group_id: g_idx });
                                 }
 
                                 ui.add_space(4.0);
@@ -308,8 +283,6 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
                                                     
                                                     let clicked = resp_x.clicked() || resp_y.clicked();
                                                     if clicked {
-                                                        state.selected_calib_idx = None;
-                                                        
                                                         let modifiers = ui.ctx().input(|i| i.modifiers);
                                                         let is_multi = modifiers.command || modifiers.ctrl;
                                                         let is_shift = modifiers.shift;
@@ -322,18 +295,14 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
                                                             let max_sel = selected_positions.iter().max().copied().unwrap_or(list_pos);
                                                             let start = list_pos.min(min_sel);
                                                             let end = list_pos.max(max_sel);
+                                                            
+                                                            let mut new_selection = Vec::new();
                                                             for pos in start..=end {
-                                                                state.selected_data_indices.insert(group_indices[pos]);
+                                                                new_selection.push(group_indices[pos]);
                                                             }
-                                                        } else if is_multi {
-                                                            if is_selected {
-                                                                state.selected_data_indices.remove(&i);
-                                                            } else {
-                                                                state.selected_data_indices.insert(i);
-                                                            }
+                                                            actions.push(Action::SelectPoints(new_selection, true));
                                                         } else {
-                                                            state.selected_data_indices.clear();
-                                                            state.selected_data_indices.insert(i);
+                                                            actions.push(Action::SelectPoints(vec![i], is_multi));
                                                         }
                                                     }
 
@@ -347,7 +316,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
                                                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                         // Disable dragging for the trash bin so it's clickable reliably
                                                         if ui.add_sized([trash_width, 20.0], egui::Button::new(btn_text).frame(false)).clicked() {
-                                                            to_remove_data = Some(i);
+                                                            actions.push(Action::RemoveDataPoint(i));
                                                         }
                                                     });
                                             });
@@ -366,67 +335,13 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context) {
 
                                 ui.add_space(8.0);
                             }
-
-                            if let Some((payload_indices, new_g_idx)) = move_point {
-                                // Extract the points being moved
-                                let mut moved_pts = Vec::new();
-                                for &pt_idx in payload_indices.iter() {
-                                    if pt_idx < state.data_pts.len() {
-                                        let mut pt = state.data_pts[pt_idx].clone();
-                                        pt.group_id = new_g_idx;
-                                        moved_pts.push(pt);
-                                    }
-                                }
-
-                                // Remove them from the existing array in reverse order
-                                let mut to_remove: Vec<usize> = payload_indices.to_vec();
-                                to_remove.sort_unstable_by(|a, b| b.cmp(a));
-                                for &idx in to_remove.iter() {
-                                    if idx < state.data_pts.len() {
-                                        state.data_pts.remove(idx);
-                                    }
-                                }
-
-                                // Append to the end
-                                state.data_pts.extend(moved_pts);
-
-                                // Update selection indices to the newly appended indices
-                                state.selected_data_indices.clear();
-                                let new_len = state.data_pts.len();
-                                for i in 0..payload_indices.len() {
-                                    state.selected_data_indices.insert(new_len - payload_indices.len() + i);
-                                }
-                            }
-                            
-                            if let Some(idx) = to_remove_data {
-                                state.data_pts.remove(idx);
-                                state.selected_data_indices.remove(&idx);
-                            }
-                            if let Some(idx) = to_remove_group {
-                                state.groups.remove(idx);
-                                // Cleanup deleted group_id and fallback active pointer
-                                if state.active_group_idx == idx {
-                                    state.active_group_idx = 0;
-                                } else if state.active_group_idx > idx {
-                                    state.active_group_idx -= 1;
-                                }
-
-                                // Re-assign orphaned points or delete them. We will re-assign to active group.
-                                for p in &mut state.data_pts {
-                                    if p.group_id == idx {
-                                        p.group_id = state.active_group_idx;
-                                    } else if p.group_id > idx {
-                                        p.group_id -= 1;
-                                    }
-                                }
-                            }
                         });
                 });
             });
         });
 }
 
-pub fn load_image(state: &mut AppState, ctx: &egui::Context) {
+pub fn load_image(ctx: &egui::Context, actions: &mut Vec<Action>) {
     if let Some(path) = FileDialog::new()
         .add_filter("image", &["png", "jpg", "jpeg"])
         .pick_file()
@@ -436,14 +351,9 @@ pub fn load_image(state: &mut AppState, ctx: &egui::Context) {
             let size = [img.width() as _, img.height() as _];
             let pixels = img.as_flat_samples();
             let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
-            state.texture = Some(ctx.load_texture("main_image", color_image, Default::default()));
-            state.img_size = Vec2::new(size[0] as f32, size[1] as f32);
-            state.image_path = Some(path);
-            state.pan = Vec2::ZERO;
-            state.zoom = 1.0;
-            state.center_requested = true;
-            state.calib_pts.clear();
-            state.data_pts.clear();
+            let handle = ctx.load_texture("main_image", color_image, Default::default());
+            actions.push(Action::LoadImage(path, handle, Vec2::new(size[0] as f32, size[1] as f32)));
+            actions.push(Action::RequestCenter);
         }
     }
 }
