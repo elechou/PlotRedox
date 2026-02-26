@@ -165,12 +165,7 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                             is_calib: true,
                             idx: Some(idx),
                         });
-                        // Set selection inside state logic via drag?
-                        // Wait, previous code just selected it.
-                        actions.push(Action::ClearSelection);
-                        // And we should probably add an Action::SelectCalibPoint(idx) but for now let's just let it select
-                        // Let's reuse SelectPoints maybe? No, calib points don't have SelectPoints action yet.
-                        // I will add SelectCalibPoint below.
+                        actions.push(Action::SelectCalibPoint(idx));
                     } else if let Some(idx) = press_hit_data {
                         actions.push(Action::SetDraggingPoint {
                             is_calib: false,
@@ -198,8 +193,8 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                         actions.push(Action::RemoveDataPoint(idx));
                     }
                 } else if state.mode == AppMode::Select {
-                    if let Some(_) = press_hit_calib {
-                        // actions.push(Action::SelectCalibPoint(idx)); // needed later
+                    if let Some(idx) = press_hit_calib {
+                        actions.push(Action::SelectCalibPoint(idx));
                     } else if let Some(idx) = press_hit_data {
                         let is_multi = ctx.input(|i| {
                             i.modifiers.shift || i.modifiers.command || i.modifiers.ctrl
@@ -224,13 +219,11 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
 
             if response.dragged_by(egui::PointerButton::Primary) && state.mode != AppMode::Pan {
                 let drag_delta = response.drag_delta() / state.zoom;
-                if state.dragging_calib_idx.is_some() || state.dragging_data_idx.is_some() {
-                    actions.push(Action::MoveSelected {
-                        dx: drag_delta.x,
-                        dy: drag_delta.y,
-                    });
-                    actions.push(Action::RecalculateData);
-                }
+                actions.push(Action::MoveSelected {
+                    dx: drag_delta.x,
+                    dy: drag_delta.y,
+                });
+                actions.push(Action::RecalculateData);
             }
 
             if response.drag_stopped() {

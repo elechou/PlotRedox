@@ -28,6 +28,7 @@ pub enum Action {
         dy: f32,
     },
     RecalculateData,
+    SelectCalibPoint(usize),
     SelectPoints(Vec<usize>, bool /* is_multi */),
     SetDraggingPoint {
         is_calib: bool,

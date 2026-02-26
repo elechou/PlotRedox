@@ -220,13 +220,22 @@ impl AppState {
                 );
             }
             Action::MoveSelected { dx, dy } => {
-                if let Some(idx) = self.selected_calib_idx {
+                if let Some(idx) = self.dragging_calib_idx {
                     if let Some(p) = self.calib_pts.get_mut(idx) {
                         p.px += dx;
                         p.py += dy;
                     }
-                } else {
-                    for &idx in &self.selected_data_indices {
+                } else if let Some(idx) = self.dragging_data_idx {
+                    if self.selected_data_indices.contains(&idx) {
+                        // Dragging a selected point means move all selected points
+                        for &s_idx in &self.selected_data_indices {
+                            if let Some(p) = self.data_pts.get_mut(s_idx) {
+                                p.px += dx;
+                                p.py += dy;
+                            }
+                        }
+                    } else {
+                        // Dragging an unselected point moves only that point
                         if let Some(p) = self.data_pts.get_mut(idx) {
                             p.px += dx;
                             p.py += dy;
@@ -246,7 +255,12 @@ impl AppState {
                     self.log_y,
                 );
             }
+            Action::SelectCalibPoint(idx) => {
+                self.selected_calib_idx = Some(idx);
+                self.selected_data_indices.clear();
+            }
             Action::SelectPoints(indices, is_multi) => {
+                self.selected_calib_idx = None;
                 let should_toggle = is_multi && indices.len() == 1;
                 if !is_multi {
                     self.selected_data_indices.clear();
