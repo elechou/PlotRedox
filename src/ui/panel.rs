@@ -367,6 +367,7 @@ pub fn load_image(ctx: &egui::Context, actions: &mut Vec<Action>) {
             let handle = ctx.load_texture("main_image", color_image, Default::default());
             actions.push(Action::LoadImage(path, handle, Vec2::new(size[0] as f32, size[1] as f32)));
             actions.push(Action::RequestCenter);
+            actions.push(Action::SetMode(AppMode::AddCalib));
         }
     }
 }

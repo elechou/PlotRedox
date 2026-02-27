@@ -301,8 +301,12 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                 (9.0, 7.0, 5.0)
             };
 
-            painter.circle_filled(sp, r_blk, Color32::BLACK);
-            painter.circle_filled(sp, r_wht, Color32::WHITE);
+            let alpha = col.a();
+            let black_border = Color32::from_rgba_unmultiplied(0, 0, 0, alpha);
+            let white_border = Color32::from_rgba_unmultiplied(255, 255, 255, alpha);
+
+            painter.circle_filled(sp, r_blk, black_border);
+            painter.circle_filled(sp, r_wht, white_border);
             painter.circle_filled(sp, r_in, col);
         };
 
