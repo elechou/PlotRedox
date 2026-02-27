@@ -12,8 +12,7 @@ pub fn draw_panel(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Actio
         .resizable(false)
         .exact_width(320.0)
         .show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.add_space(10.0);
+            ui.add_space(10.0);
 
                 // Set explicit horizontal filling for children so frames all snap to the same uniform width
                 ui.set_min_width(ui.available_width());
@@ -130,13 +129,17 @@ pub fn draw_panel(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Actio
                                 actions.push(Action::AddGroup);
                             }
                             if ui.button("Clear All Data").clicked() {
-                                actions.push(Action::ClearData);
+                                actions.push(Action::RequestClearData);
+                            }
+                            if ui.button("Export CSV").clicked() {
+                                actions.push(Action::RequestExportCsv);
                             }
                         });
 
                         ui.add_space(10.0);
                         egui::ScrollArea::vertical()
-                            .max_height(300.0)
+                            .id_salt("data_panel_scroll")
+                            .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 let num_groups = state.groups.len();
                                 for (g_idx, group) in state.groups.iter().enumerate() {
@@ -347,28 +350,31 @@ pub fn draw_panel(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Actio
                                         );
                                     }
 
-                                    ui.add_space(8.0);
-                                }
-                            });                });
-            });
+                                     ui.add_space(8.0);
+                                 }
+                             });
+                });
         });
 }
 
 pub fn load_image(ctx: &egui::Context, actions: &mut Vec<Action>) {
+    // Normal button load
     if let Some(path) = FileDialog::new()
         .add_filter("image", &["png", "jpg", "jpeg"])
         .pick_file()
     {
-        if let Ok(img) = image::open(&path) {
-            let img = img.to_rgba8();
-            let size = [img.width() as _, img.height() as _];
-            let pixels = img.as_flat_samples();
-            let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
-            let handle = ctx.load_texture("main_image", color_image, Default::default());
-            actions.push(Action::LoadImage(path, handle, Vec2::new(size[0] as f32, size[1] as f32)));
-            actions.push(Action::RequestCenter);
-            actions.push(Action::SetMode(AppMode::AddCalib));
-        }
+        process_image_file(path, ctx, actions);
+    }
+}
+
+pub fn process_image_file(path: std::path::PathBuf, ctx: &egui::Context, actions: &mut Vec<Action>) {
+    if let Ok(img) = image::open(&path) {
+        let img = img.to_rgba8();
+        let size = [img.width() as _, img.height() as _];
+        let pixels = img.as_flat_samples();
+        let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+        let handle = ctx.load_texture("main_image", color_image, Default::default());
+        actions.push(Action::SetPendingImage(path, handle, Vec2::new(size[0] as f32, size[1] as f32)));
     }
 }
 

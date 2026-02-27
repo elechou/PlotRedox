@@ -148,6 +148,15 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                 (hover_hit_calib, hover_hit_data)
             };
 
+            if ctx.input(|i| i.pointer.any_pressed()) && !response.hovered() {
+                if state.mode == AppMode::AddData
+                    || state.mode == AppMode::Delete
+                    || state.mode == AppMode::Pan
+                {
+                    actions.push(Action::SetMode(AppMode::Select));
+                }
+            }
+
             if state.hovered_calib_idx != hover_hit_calib {
                 actions.push(Action::SetHoveredCalib(hover_hit_calib));
             }
@@ -156,33 +165,30 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
             }
 
             if response.drag_started_by(egui::PointerButton::Primary) {
-                if state.mode == AppMode::Select
-                    || state.mode == AppMode::AddCalib
-                    || state.mode == AppMode::AddData
-                {
-                    if let Some(idx) = press_hit_calib {
-                        actions.push(Action::SetDraggingPoint {
-                            is_calib: true,
-                            idx: Some(idx),
-                        });
-                        actions.push(Action::SelectCalibPoint(idx));
-                    } else if let Some(idx) = press_hit_data {
-                        actions.push(Action::SetDraggingPoint {
-                            is_calib: false,
-                            idx: Some(idx),
-                        });
-                        let is_multi = ctx.input(|i| {
-                            i.modifiers.shift || i.modifiers.ctrl || i.modifiers.command
-                        });
-                        if !state.selected_data_indices.contains(&idx) {
-                            actions.push(Action::SelectPoints(vec![idx], is_multi));
-                        }
-                        response.request_focus();
-                    } else if state.mode == AppMode::Select {
-                        // Dragging on empty space starts box selection natively in Select Mode
-                        if let Some(pos) = press_origin {
-                            actions.push(Action::SetBoxStart(Some(pos)));
-                        }
+                if let Some(idx) = press_hit_calib {
+                    actions.push(Action::SetDraggingPoint {
+                        is_calib: true,
+                        idx: Some(idx),
+                    });
+                    actions.push(Action::SelectCalibPoint(idx));
+                    if state.mode != AppMode::AddCalib {
+                        actions.push(Action::SetMode(AppMode::Select));
+                    }
+                } else if let Some(idx) = press_hit_data {
+                    actions.push(Action::SetDraggingPoint {
+                        is_calib: false,
+                        idx: Some(idx),
+                    });
+                    let is_multi =
+                        ctx.input(|i| i.modifiers.shift || i.modifiers.ctrl || i.modifiers.command);
+                    if !state.selected_data_indices.contains(&idx) {
+                        actions.push(Action::SelectPoints(vec![idx], is_multi));
+                    }
+                    response.request_focus();
+                    actions.push(Action::SetMode(AppMode::Select));
+                } else if state.mode == AppMode::Select {
+                    if let Some(pos) = press_origin {
+                        actions.push(Action::SetBoxStart(Some(pos)));
                     }
                 }
             }
@@ -191,6 +197,8 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                 if state.mode == AppMode::Delete {
                     if let Some(idx) = press_hit_data {
                         actions.push(Action::RemoveDataPoint(idx));
+                    } else {
+                        actions.push(Action::SetMode(AppMode::Select));
                     }
                 } else if state.mode == AppMode::Select {
                     if let Some(idx) = press_hit_calib {
@@ -204,6 +212,8 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                     } else {
                         actions.push(Action::ClearSelection);
                     }
+                } else if state.mode == AppMode::Pan {
+                    actions.push(Action::SetMode(AppMode::Select));
                 } else if state.texture.is_some() {
                     let (img_x, img_y) = to_image(mouse_pos, state.pan, state.zoom);
 
@@ -211,8 +221,17 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                         actions.push(Action::AddCalibPoint { img_x, img_y });
                         response.request_focus();
                     } else if state.mode == AppMode::AddData {
-                        actions.push(Action::AddDataPoint { img_x, img_y });
-                        response.request_focus();
+                        if let Some(idx) = press_hit_data {
+                            let is_multi = ctx.input(|i| {
+                                i.modifiers.shift || i.modifiers.command || i.modifiers.ctrl
+                            });
+                            actions.push(Action::SelectPoints(vec![idx], is_multi));
+                            actions.push(Action::SetMode(AppMode::Select));
+                            response.request_focus();
+                        } else {
+                            actions.push(Action::AddDataPoint { img_x, img_y });
+                            response.request_focus();
+                        }
                     }
                 }
             }

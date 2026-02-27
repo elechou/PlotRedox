@@ -42,6 +42,8 @@ pub enum Action {
     // Global App Commands
     SetMode(crate::state::AppMode),
     LoadImage(PathBuf, eframe::egui::TextureHandle, eframe::egui::Vec2),
+    SetPendingImage(PathBuf, eframe::egui::TextureHandle, eframe::egui::Vec2),
+    CancelPendingImage,
     ClearSelection,
     RequestCenter,
     CenterCanvas(eframe::egui::Rect),
@@ -53,6 +55,8 @@ pub enum Action {
 
     // Additional Panel Commands
     AddGroup,
+    RequestClearData,
+    CancelClearData,
     ClearData,
     ClearCalib,
     UpdateCalibAxis(String, String), // axis identifier, value

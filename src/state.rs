@@ -24,6 +24,7 @@ pub struct AppState {
     pub image_path: Option<PathBuf>,
     pub texture: Option<TextureHandle>,
     pub img_size: Vec2,
+    pub pending_image: Option<(PathBuf, TextureHandle, Vec2)>,
 
     // Viewport transform (Panning & Zooming)
     pub pan: Vec2,
@@ -54,6 +55,7 @@ pub struct AppState {
     // Transient Box Select state
     pub box_start: Option<eframe::egui::Pos2>,
     pub center_requested: bool,
+    pub pending_clear_data: bool,
 }
 
 impl Default for AppState {
@@ -63,6 +65,7 @@ impl Default for AppState {
             image_path: None,
             texture: None,
             img_size: Vec2::ZERO,
+            pending_image: None,
             pan: Vec2::ZERO,
             zoom: 1.0,
             calib_pts: Vec::new(),
@@ -86,6 +89,7 @@ impl Default for AppState {
             hovered_data_idx: None,
             box_start: None,
             center_requested: false,
+            pending_clear_data: false,
         }
     }
 }
@@ -303,8 +307,15 @@ impl AppState {
             Action::SetBoxStart(pos) => {
                 self.box_start = pos;
             }
+            Action::RequestClearData => {
+                self.pending_clear_data = true;
+            }
+            Action::CancelClearData => {
+                self.pending_clear_data = false;
+            }
             Action::ClearData => {
                 self.data_pts.clear();
+                self.pending_clear_data = false;
             }
             Action::ClearCalib => {
                 self.calib_pts.clear();
@@ -380,6 +391,13 @@ impl AppState {
                 self.zoom = 1.0;
                 self.calib_pts.clear();
                 self.data_pts.clear();
+                self.pending_image = None;
+            }
+            Action::SetPendingImage(path, tex, size) => {
+                self.pending_image = Some((path, tex, size));
+            }
+            Action::CancelPendingImage => {
+                self.pending_image = None;
             }
             Action::ClearSelection => {
                 self.selected_calib_idx = None;
