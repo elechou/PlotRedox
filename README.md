@@ -24,7 +24,7 @@ A native, high-performance plot digitizer built with **Rust** and **egui**. Load
   - Steinmetz parameter fitting (multi-variate OLS)
 - **Workspace panel** — inspect all variables after script execution, click to view data tables
 - **Import / Export** — save and load `.rhai` script files
-- **📖 Help** — built-in scripting reference with syntax guide and full API documentation
+- **Help** — built-in scripting reference with syntax guide and full API documentation
 
 ### Math & Analysis API
 Scripts have access to a rich set of built-in functions:
@@ -36,63 +36,68 @@ Scripts have access to a rich set of built-in functions:
 | Data | `col(array, "field")`, `extract_number(string)` |
 | Regression | `linreg(x, y)`, `polyfit(x, y, degree)`, `lstsq(A, b)` |
 
-## Prerequisites
+## Installation
+
+### Download Releases
+You can download pre-compiled binaries for Windows, macOS, and Linux from the [Releases](https://github.com/elechou/PlotRedox/releases) page.
+
+> [!IMPORTANT]
+> **A Note on Security & Privacy:**
+> Since these binaries are not signed with expensive developer certificates, you might encounter security warnings:
+> - **Windows:** "Windows protected your PC" (SmartScreen). Click *More info* → *Run anyway*.
+> - **macOS:** "App cannot be opened because the developer cannot be verified". Right-click the app and select *Open*, or go to *System Settings* → *Privacy & Security*.
+>
+> If you prefer not to bypass these warnings, you are encouraged to audit the source code and build the application yourself locally (see below).
+
+## Building from Source
+
+Building from source ensures you are running the exact code present in this repository. It is the recommended method for security-conscious users.
 
 ### 1. Install Rust
-
-If you don't have Rust installed, use [rustup](https://rustup.rs/) (the official installer):
-
+If you don't have Rust installed, visit [rustup.rs](https://rustup.rs/) or run:
 ```bash
-# Linux / macOS
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Windows
-# Download and run the installer from https://rustup.rs/
 ```
 
-After installation, make sure `cargo` is available:
-
-```bash
-rustc --version
-cargo --version
-```
-
-> **Tip:** If the commands are not found, restart your terminal or run `source $HOME/.cargo/env`.
-
-### 2. Install system dependencies
+### 2. Install System Dependencies
 
 **Linux (Debian / Ubuntu)**
-
 ```bash
 sudo apt-get update
 sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
     libxkbcommon-dev libssl-dev libgtk-3-dev
 ```
 
-**macOS** – No extra dependencies are needed (Xcode Command Line Tools are sufficient):
-
-```bash
-xcode-select --install
-```
+**macOS** – Xcode Command Line Tools are required: `xcode-select --install`
 
 **Windows** – No extra dependencies are needed.
 
-## Building & Running
-
+### 3. Build & Run
 ```bash
 git clone https://github.com/elechou/PlotRedox.git
 cd PlotRedox
 
-# Debug build
-cargo run
-
-# Release build (recommended)
+# Run in optimized release mode
 cargo run --release
 ```
 
-The compiled binary will be located at:
-- Debug: `target/debug/plot-redox`
-- Release: `target/release/plot-redox`
+The compiled binary will be located at `target/release/plot-redox` (or `.exe` on Windows).
+
+## Customizing Built-in Scripts
+
+PlotRedox features a powerful **auto-discovery system** for script templates. You are not limited to the presets provided in the repository; you can easily add your own permanent code snippets to the IDE.
+
+### How it Works
+The build system (`build.rs`) automatically scans the `example_scripts/` directory during compilation and embeds every `.rhai` file it finds directly into the application's binary. This means your personal analysis scripts will appear in the **Script Templates** menu just like the built-in ones.
+
+### Adding Your Own Scripts
+1.  Navigate to the `example_scripts/` folder in the root of the repo.
+2.  Create a new `.rhai` file (e.g., `my_custom_filter.rhai`).
+3.  **Re-compile** the application using `cargo run --release`.
+
+### Pro Tips for Organization
+- **Menu Order**: Files are sorted alphabetically. Use numeric prefixes like `01_load_data.rhai`, `02_clean_data.rhai` to control the exact order in the dropdown menu.
+- **Display Names**: The system automatically "prettifies" filenames for the UI. For example, `03_advanced_log_fit.rhai` will be displayed as **"Advanced Log Fit"** in the IDE.
 
 ## How to Use
 
@@ -178,10 +183,6 @@ PlotRedox/
 ├── sample_plot.png        # Example plot image
 └── screenshot.png         # Application screenshot
 ```
-
-## Adding Custom Script Templates
-
-Drop any `.rhai` file into the `example_scripts/` directory. The build system automatically discovers and embeds them into the **Script Templates** menu. Files are sorted by filename, so use numeric prefixes (e.g. `05_my_analysis.rhai`) to control ordering. The display name is derived from the filename (e.g. `05_my_analysis` → "My Analysis").
 
 ## License
 
