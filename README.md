@@ -95,7 +95,7 @@ The build system (`build.rs`) automatically scans the `example_scripts/` directo
 2.  Create a new `.rhai` file (e.g., `my_custom_filter.rhai`).
 3.  **Re-compile** the application using `cargo run --release`.
 
-### Pro Tips for Organization
+#### Tips for Organization
 - **Menu Order**: Files are sorted alphabetically. Use numeric prefixes like `01_load_data.rhai`, `02_clean_data.rhai` to control the exact order in the dropdown menu.
 - **Display Names**: The system automatically "prettifies" filenames for the UI. For example, `03_advanced_log_fit.rhai` will be displayed as **"Advanced Log Fit"** in the IDE.
 
