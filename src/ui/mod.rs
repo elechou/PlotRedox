@@ -10,10 +10,6 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
     // ── Global shortcut detection ──────────────────────────────────────
     // MUST run BEFORE any widget rendering.
     let mut dropped_path = None;
-    let mut paste_requested = false;
-
-    let text_focused = ctx.wants_keyboard_input();
-
     ctx.input_mut(|i| {
         // Drag & drop
         if let Some(file) = i.raw.dropped_files.first() {
@@ -26,38 +22,6 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                 if ext == "png" || ext == "jpg" || ext == "jpeg" {
                     dropped_path = Some(path.clone());
                 }
-            }
-        }
-
-        // Paste shortcut detection (Cmd+V / Ctrl+V).
-        // On macOS, the OS intercepts Cmd+V at the platform level:
-        //   - If clipboard has text → egui gets Event::Paste(text)
-        //   - If clipboard has only an image → may get no event at all
-        // We try multiple detection layers:
-        if !text_focused {
-            // Layer 1: egui Paste event (works when clipboard has text)
-            let has_paste_event = i.events.iter().any(|e| matches!(e, egui::Event::Paste(_)));
-
-            // Layer 2: raw key events (check both command and mac_cmd)
-            let has_raw_v = i.raw.events.iter().any(|e| {
-                matches!(
-                    e,
-                    egui::Event::Key {
-                        key: egui::Key::V,
-                        pressed: true,
-                        modifiers,
-                        ..
-                    } if modifiers.command || modifiers.ctrl || modifiers.mac_cmd
-                )
-            });
-
-            // Layer 3: consume_key from processed events (all modifier variants)
-            let consumed = i.consume_key(egui::Modifiers::COMMAND, egui::Key::V)
-                || i.consume_key(egui::Modifiers::CTRL, egui::Key::V)
-                || i.consume_key(egui::Modifiers::MAC_CMD, egui::Key::V);
-
-            if has_paste_event || has_raw_v || consumed {
-                paste_requested = true;
             }
         }
 
@@ -80,21 +44,9 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
         }
     });
 
-    // Process drag-drop / paste results.
-    // DEFERRED clipboard reading: don't read the clipboard now.
-    // Just mark the intent; actual clipboard read happens when user confirms
-    // (via pending_load_kind → modal → paste_clipboard_image), or immediately
-    // if no image is currently loaded.
+    // Process drag-drop results.
     if let Some(path) = dropped_path {
         crate::ui::panel::process_image_file(path, ctx, actions);
-    } else if paste_requested {
-        if state.texture.is_some() {
-            // Image already loaded → show confirmation first, read clipboard later
-            state.pending_load_kind = Some("clipboard".to_string());
-        } else {
-            // No image loaded → read clipboard immediately
-            paste_clipboard_image(state, ctx, actions);
-        }
     }
 
     // ── UI rendering ──────────────────────────────────────────────────

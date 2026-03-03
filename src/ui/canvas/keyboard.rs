@@ -7,7 +7,7 @@ use crate::state::{AppMode, AppState};
 ///
 /// Layer 3 in the keyboard hierarchy:
 ///   Layer 1 — text_focused: all keys consumed by editor widgets, we skip entirely.
-///   Layer 2 — global shortcuts (Ctrl+Z, Ctrl+V) handled in ui/mod.rs.
+///   Layer 2 — global shortcuts (Ctrl+Z) handled in ui/mod.rs. (Ctrl+V is intentionally disabled)
 ///   Layer 3 — canvas shortcuts handled here.
 pub fn handle_keyboard(
     state: &AppState,
