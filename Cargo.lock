@@ -2575,7 +2575,7 @@ dependencies = [
 
 [[package]]
 name = "plot-redox"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clipboard-rs",
  "csv",

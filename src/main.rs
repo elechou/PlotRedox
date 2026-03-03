@@ -43,7 +43,7 @@ impl eframe::App for PlotRedoxApp {
 }
 
 fn load_icon() -> Option<egui::IconData> {
-    let icon_bytes = include_bytes!("../assets/icon.png");
+    let icon_bytes = include_bytes!("../assets/icon_exports/icon-iOS-Default-512x512@1x.png");
     let image = image::load_from_memory(icon_bytes).ok()?;
     let image = image.to_rgba8();
     let (width, height) = image.dimensions();

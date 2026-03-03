@@ -18,13 +18,10 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: PlotRedox-Windows.zip
           - os: macos-latest # M1/M2/M3 (arm64)
             target: aarch64-apple-darwin
-            artifact_name: PlotRedox-macOS-arm64.zip
           - os: macos-latest # Cross-compile for Intel (x86_64)
             target: x86_64-apple-darwin
-            artifact_name: PlotRedox-macOS-x86_64.zip
 
     steps:
       - name: Checkout repository
@@ -44,7 +41,18 @@ jobs:
 
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
-        run: Compress-Archive -Path target/${{ matrix.target }}/release/plot-redox.exe -DestinationPath ${{ matrix.artifact_name }}
+        shell: pwsh
+        run: |
+          # Dynamically create professional artifact name
+          $VERSION = "${{ github.ref_name }}"
+          $TARGET = "${{ matrix.target }}"
+          $ASSET_NAME = "PlotRedox-$VERSION-$TARGET.zip"
+          
+          # Compress the executable
+          Compress-Archive -Path target/${{ matrix.target }}/release/plot-redox.exe -DestinationPath $ASSET_NAME
+          
+          # Pass the asset name to the next steps
+          echo "ASSET_NAME=$ASSET_NAME" >> $env:GITHUB_ENV
 
       # ==================
       # macOS Build
@@ -59,12 +67,22 @@ jobs:
 
       - name: Ad-hoc code sign (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: codesign --force --deep -s - target/${{ matrix.target }}/release/bundle/osx/plot-redox.app
+        # Using a wildcard *.app because cargo-bundle respects the capitalized name in Cargo.toml
+        run: codesign --force --deep -s - target/${{ matrix.target }}/release/bundle/osx/*.app
 
       - name: Package (macOS)
         if: startsWith(matrix.os, 'macos')
-        # Use `ditto` to correctly zip the .app directory structure preserving permissions.
-        run: ditto -c -k --sequesterRsrc --keepParent target/${{ matrix.target }}/release/bundle/osx/plot-redox.app ${{ matrix.artifact_name }}
+        run: |
+          # Dynamically create professional artifact name
+          VERSION="${{ github.ref_name }}"
+          TARGET="${{ matrix.target }}"
+          ASSET_NAME="PlotRedox-${VERSION}-${TARGET}.zip"
+          
+          # Use `ditto` to preserve .app structure and permissions
+          ditto -c -k --sequesterRsrc --keepParent target/${{ matrix.target }}/release/bundle/osx/*.app $ASSET_NAME
+          
+          # Pass the asset name to the next steps
+          echo "ASSET_NAME=$ASSET_NAME" >> $GITHUB_ENV
 
       # ==================
       # Upload Artifacts
@@ -72,8 +90,8 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}
+          name: ${{ env.ASSET_NAME }}
+          path: ${{ env.ASSET_NAME }}
 
   release:
     name: Create GitHub Release
