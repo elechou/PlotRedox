@@ -27,6 +27,10 @@ pub enum Action {
         dx: f32,
         dy: f32,
     },
+    NudgeSelected {
+        dx: f32,
+        dy: f32,
+    },
     RecalculateData,
     SelectCalibPoint(usize),
     SelectPoints(Vec<usize>, bool /* is_multi */),

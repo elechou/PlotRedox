@@ -15,7 +15,7 @@ pub fn draw_help_window(state: &mut AppState, ctx: &egui::Context) {
     let mut open = state.ide.show_help;
     egui::Window::new("Scripting Reference")
         .open(&mut open)
-        .default_width(850.0)
+        .default_width(830.0)
         .default_height(500.0)
         .vscroll(true)
         .resizable(true)

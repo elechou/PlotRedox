@@ -215,6 +215,9 @@ impl AppState {
             Action::SetDraggingPoint { .. } => {
                 self.save_snapshot();
             }
+            Action::NudgeSelected { .. } => {
+                self.save_snapshot();
+            }
             _ => {}
         }
 
@@ -343,6 +346,22 @@ impl AppState {
                     self.log_x,
                     self.log_y,
                 );
+            }
+            Action::NudgeSelected { dx, dy } => {
+                // Keyboard arrow-key nudging: move selected calib point or data points directly
+                if let Some(idx) = self.selected_calib_idx {
+                    if let Some(p) = self.calib_pts.get_mut(idx) {
+                        p.px += dx;
+                        p.py += dy;
+                    }
+                } else {
+                    for &s_idx in &self.selected_data_indices {
+                        if let Some(p) = self.data_pts.get_mut(s_idx) {
+                            p.px += dx;
+                            p.py += dy;
+                        }
+                    }
+                }
             }
             Action::MoveSelected { dx, dy } => {
                 if let Some(idx) = self.dragging_calib_idx {
