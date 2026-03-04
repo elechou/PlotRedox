@@ -17,9 +17,9 @@
 // ============================================================
 
 // Adjust this multiplier if your group-name number is in Hz:
-let freq_multiplier = 1.0;  //kHz: 1.0,    Hz: 1.0e-3;
-let b_multiplier = 1.0e-3;  //mT: 1.0e-3,  T: 1.0;
-let power_multiplier = 1.0; //kW/m3: 1.0,  W/m3: 1.0e-3;
+let freq_multiplier = 1.0;  //(on graph)kHz: 1.0,    Hz: 1.0e-3;
+let b_multiplier = 1.0e-3;  //(on graph)mT: 1.0e-3,  T: 1.0;
+let power_multiplier = 1.0; //(on graph)kW/m3: 1.0,  W/m3: 1.0e-3;
 
 print("=== Steinmetz Parameter Fitting (OLS in log₁₀ space) ===\n");
 
@@ -80,7 +80,7 @@ if total_pts < 3 {
     let k      = pow10(log_k);
 
     print("\n─── Results ───");
-    print("in kW/m3, kHz, mT");
+    print("in kW/m3, kHz, T");
     print(`k     = ${k}`);
     print(`alpha = ${alpha}`);
     print(`beta  = ${beta}`);
