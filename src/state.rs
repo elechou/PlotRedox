@@ -1,7 +1,47 @@
 use crate::core::{CalibPoint, DataPoint};
 use crate::script::WorkspaceVar;
 use eframe::egui::{Color32, TextureHandle, Vec2};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+// ── Serializable mirror types (no egui dependency) ─────────────────────
+
+#[derive(Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct SerializableGroup {
+    pub name: String,
+    pub color: [u8; 4],
+}
+
+#[derive(Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct SerializableIdeState {
+    pub is_open: bool,
+    pub code: String,
+    pub user_scripts: Vec<(String, String)>,
+}
+
+/// The on-disk representation of a project.
+/// All fields have `#[serde(default)]` so that adding new fields in the future
+/// is fully backwards-compatible: old files simply get the default value.
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ProjectData {
+    pub version: u32,
+    pub calib_pts: Vec<CalibPoint>,
+    pub data_pts: Vec<DataPoint>,
+    pub groups: Vec<SerializableGroup>,
+    pub active_group_idx: usize,
+    pub x1_val: String,
+    pub x2_val: String,
+    pub y1_val: String,
+    pub y2_val: String,
+    pub log_x: bool,
+    pub log_y: bool,
+    pub ide: SerializableIdeState,
+}
+
+// ── Runtime types ──────────────────────────────────────────────────────
 
 #[derive(Clone)]
 pub struct PointGroup {
@@ -26,6 +66,18 @@ pub enum AppMode {
     Pan,
 }
 
+/// Actions that are deferred until unsaved-changes confirmation is resolved.
+pub enum PendingAction {
+    NewProject,
+    LoadImage(
+        std::path::PathBuf,
+        eframe::egui::TextureHandle,
+        eframe::egui::Vec2,
+    ),
+    OpenProject(crate::state::ProjectData, Vec<u8>, std::path::PathBuf),
+    CloseApp,
+}
+
 pub struct AppState {
     pub mode: AppMode,
 
@@ -33,6 +85,7 @@ pub struct AppState {
     pub image_path: Option<PathBuf>,
     pub texture: Option<TextureHandle>,
     pub img_size: Vec2,
+    pub raw_image_bytes: Option<Vec<u8>>,
     pub pending_image: Option<(PathBuf, TextureHandle, Vec2)>,
 
     // Viewport transform (Panning & Zooming)
@@ -69,11 +122,20 @@ pub struct AppState {
     // UI collapse state for group data lists
     pub collapsed_groups: std::collections::HashSet<usize>,
 
-    // Pending load action: "file" or "clipboard" — warning shown before file picker
-    pub pending_load_kind: Option<String>,
+    // Pending action requiring unsaved-changes confirmation
+    pub pending_action: Option<PendingAction>,
 
     // Show "no image in clipboard" modal
     pub show_clipboard_empty: bool,
+
+    // Current project file path (for Ctrl+S save-in-place)
+    pub project_path: Option<PathBuf>,
+
+    // Show About dialog
+    pub show_about: bool,
+
+    // Project state tracking
+    pub dirty: bool,
 
     // History
     pub undo_stack: Vec<HistorySnapshot>,
@@ -101,6 +163,7 @@ impl Default for AppState {
             image_path: None,
             texture: None,
             img_size: Vec2::ZERO,
+            raw_image_bytes: None,
             pending_image: None,
             pan: Vec2::ZERO,
             zoom: 1.0,
@@ -127,8 +190,11 @@ impl Default for AppState {
             center_requested: false,
             pending_clear_data: false,
             collapsed_groups: std::collections::HashSet::new(),
-            pending_load_kind: None,
+            pending_action: None,
             show_clipboard_empty: false,
+            project_path: None,
+            show_about: false,
+            dirty: false,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             ide: IdeState::default(),
@@ -137,6 +203,25 @@ impl Default for AppState {
 }
 
 impl AppState {
+    /// Returns the project display name (filename stem or "Untitled").
+    pub fn project_name(&self) -> String {
+        self.project_path
+            .as_ref()
+            .and_then(|p| p.file_stem())
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "Untitled".to_string())
+    }
+
+    /// Returns the window title: "PlotRedox — name" with "*" if dirty.
+    pub fn window_title(&self) -> String {
+        let name = self.project_name();
+        if self.dirty {
+            format!("PlotRedox — {}*", name)
+        } else {
+            format!("PlotRedox — {}", name)
+        }
+    }
+
     pub fn reset_extraction_data(&mut self) {
         // Clear all data points
         self.data_pts.clear();
@@ -193,6 +278,32 @@ impl AppState {
 
     pub fn update(&mut self, action: crate::action::Action) {
         use crate::action::Action;
+
+        // Mark dirty for data-modifying actions (before the action is consumed)
+        let is_data_modifying = matches!(
+            &action,
+            Action::AddCalibPoint { .. }
+                | Action::AddDataPoint { .. }
+                | Action::MoveSelected { .. }
+                | Action::NudgeSelected { .. }
+                | Action::DeleteSelectedPoints
+                | Action::RemoveDataPoint(_)
+                | Action::MovePointsToGroup { .. }
+                | Action::DeleteGroup(_)
+                | Action::UpdateGroupName(..)
+                | Action::UpdateGroupColor(..)
+                | Action::AddGroup
+                | Action::ClearData
+                | Action::ClearCalib
+                | Action::UpdateCalibAxis(..)
+                | Action::UpdateLogScale(..)
+                | Action::LoadImage(..)
+                | Action::UpdateIDECode(_)
+                | Action::AddUserScript(..)
+        );
+        if is_data_modifying {
+            self.dirty = true;
+        }
 
         // Determine if this action should push a history state BEFORE mutating
         match action {
@@ -539,7 +650,7 @@ impl AppState {
                 self.reset_extraction_data();
             }
             Action::ClearCalib => {
-                self.calib_pts.clear();
+                self.reset_calibration_data();
                 crate::core::recalculate_data(
                     &self.calib_pts,
                     &mut self.data_pts,
@@ -604,14 +715,24 @@ impl AppState {
                 self.mode = mode;
             }
             Action::LoadImage(path, tex, size) => {
-                self.image_path = Some(path);
-                self.texture = Some(tex);
-                self.img_size = size;
-                self.pan = Vec2::ZERO;
-                self.zoom = 1.0;
-                self.pending_image = None;
-                self.reset_calibration_data();
-                self.reset_extraction_data();
+                // Loading a new image = complete new project reset
+                let bytes = if path.to_string_lossy() != "Clipboard" {
+                    std::fs::read(&path).ok()
+                } else {
+                    None
+                };
+
+                // Reset to default state but keep the new image definitions
+                let mut new_state = AppState::default();
+                new_state.raw_image_bytes = bytes;
+                new_state.image_path = Some(path);
+                new_state.texture = Some(tex);
+                new_state.img_size = size;
+
+                // We preserve IDE open status if desired, or just reset it. The user wants a clean slate.
+                // "ide 的workspace 跟 code都没有清空"
+
+                *self = new_state;
             }
             Action::SetPendingImage(path, tex, size) => {
                 self.pending_image = Some((path, tex, size));
@@ -648,6 +769,11 @@ impl AppState {
             Action::RequestExportCsv => {
                 crate::ui::panel::export_csv(self);
             }
+            // SaveProject / SaveProjectAs / OpenProject / NewProject are handled in main.rs
+            Action::SaveProject
+            | Action::SaveProjectAs
+            | Action::OpenProject
+            | Action::NewProject => {}
         }
     }
 }

@@ -66,6 +66,10 @@ pub enum Action {
         zoom: f32,
     },
     RequestExportCsv,
+    SaveProject,
+    SaveProjectAs,
+    OpenProject,
+    NewProject,
 
     // Additional Panel Commands
     AddGroup,

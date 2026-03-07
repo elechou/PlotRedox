@@ -2,6 +2,7 @@
 
 mod core;
 mod ide;
+mod project;
 mod script;
 mod state;
 mod ui;
@@ -34,10 +35,62 @@ impl PlotRedoxApp {
 
 impl eframe::App for PlotRedoxApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Update window title to reflect project name + dirty state
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.state.window_title()));
+
+        // Intercept close event
+        if ctx.input(|i| i.viewport().close_requested()) {
+            if self.state.dirty {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.state.pending_action = Some(state::PendingAction::CloseApp);
+            }
+        }
+
         let mut actions = Vec::new();
         ui::draw_ui(&mut self.state, ctx, &mut actions);
         for action in actions {
-            self.state.update(action);
+            match action {
+                crate::action::Action::SaveProject => {
+                    if let Some(path) = self.state.project_path.clone() {
+                        project::save_project_to_path(&self.state, &path);
+                        self.state.dirty = false;
+                    } else {
+                        if let Some(path) = project::save_project_as(&self.state) {
+                            self.state.project_path = Some(path);
+                            self.state.dirty = false;
+                        }
+                    }
+                }
+                crate::action::Action::SaveProjectAs => {
+                    if let Some(path) = project::save_project_as(&self.state) {
+                        self.state.project_path = Some(path);
+                        self.state.dirty = false;
+                    }
+                }
+                crate::action::Action::OpenProject => {
+                    if let Some((data, img_bytes, path)) = project::open_project() {
+                        if self.state.dirty {
+                            self.state.pending_action =
+                                Some(state::PendingAction::OpenProject(data, img_bytes, path));
+                        } else {
+                            let proj_path = path.clone();
+                            project::apply_project(&mut self.state, data, &img_bytes, path, ctx);
+                            self.state.project_path = Some(proj_path);
+                            self.state.dirty = false;
+                        }
+                    }
+                }
+                crate::action::Action::NewProject => {
+                    if self.state.dirty {
+                        self.state.pending_action = Some(state::PendingAction::NewProject);
+                    } else {
+                        self.state = AppState::default();
+                    }
+                }
+                other => {
+                    self.state.update(other);
+                }
+            }
         }
     }
 }

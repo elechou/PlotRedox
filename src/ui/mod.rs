@@ -9,7 +9,8 @@ use eframe::egui;
 pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
     // ── Global shortcut detection ──────────────────────────────────────
     // MUST run BEFORE any widget rendering.
-    let mut dropped_path = None;
+    let mut dropped_image_path = None;
+    let mut dropped_prdx_path = None;
     ctx.input_mut(|i| {
         // Drag & drop
         if let Some(file) = i.raw.dropped_files.first() {
@@ -20,9 +21,18 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                     .unwrap_or("")
                     .to_lowercase();
                 if ext == "png" || ext == "jpg" || ext == "jpeg" {
-                    dropped_path = Some(path.clone());
+                    dropped_image_path = Some(path.clone());
+                } else if ext == "prdx" {
+                    dropped_prdx_path = Some(path.clone());
                 }
             }
+        }
+
+        // Save project: Ctrl+S / Cmd+S
+        let save_cmd = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::S);
+        let save_ctrl = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::S);
+        if i.consume_shortcut(&save_cmd) || i.consume_shortcut(&save_ctrl) {
+            actions.push(Action::SaveProject);
         }
 
         // Undo / Redo
@@ -45,44 +55,127 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
     });
 
     // Process drag-drop results.
-    if let Some(path) = dropped_path {
-        crate::ui::panel::process_image_file(path, ctx, actions);
+    if let Some(path) = dropped_image_path {
+        if path.extension().is_some_and(|ext| ext == "prdx") {
+            if let Some((data, img_bytes, path)) = crate::project::open_project_from_path(&path) {
+                if state.dirty {
+                    state.pending_action = Some(crate::state::PendingAction::OpenProject(
+                        data, img_bytes, path,
+                    ));
+                } else {
+                    let proj_path = path.clone();
+                    crate::project::apply_project(state, data, &img_bytes, path, ctx);
+                    state.project_path = Some(proj_path);
+                    state.dirty = false;
+                }
+            }
+        } else {
+            crate::ui::panel::process_image_file(state, path, ctx, actions);
+        }
+    }
+    if let Some(path) = dropped_prdx_path {
+        if let Some((data, img_bytes, file_path)) = crate::project::open_project_from_path(&path) {
+            if state.dirty {
+                state.pending_action = Some(crate::state::PendingAction::OpenProject(
+                    data, img_bytes, file_path,
+                ));
+            } else {
+                let proj_path = file_path.clone();
+                crate::project::apply_project(state, data, &img_bytes, file_path, ctx);
+                state.project_path = Some(proj_path);
+                state.dirty = false;
+            }
+        }
     }
 
     // ── UI rendering ──────────────────────────────────────────────────
-    // Top Panel: Unified Toolbar
+    // Top Panel: Menu Bar + Quick-Access Toolbar
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-        ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            ui.heading("PlotRedox");
-            ui.add_space(20.0);
+        egui::MenuBar::new().ui(ui, |ui| {
+            // ── Menu Bar ──────────────────────────────────────────
+            ui.menu_button("File", |ui| {
+                if ui.button("New Project").clicked() {
+                    actions.push(Action::NewProject);
+                    ui.close();
+                }
+                ui.separator();
+                if ui
+                    .add(egui::Button::new("Open Project…").shortcut_text(""))
+                    .clicked()
+                {
+                    actions.push(Action::OpenProject);
+                    ui.close();
+                }
+                ui.separator();
+                if ui
+                    .add(egui::Button::new("Save Project").shortcut_text("Ctrl+S"))
+                    .clicked()
+                {
+                    actions.push(Action::SaveProject);
+                    ui.close();
+                }
+                if ui
+                    .add(egui::Button::new("Save Project As…").shortcut_text(""))
+                    .clicked()
+                {
+                    actions.push(Action::SaveProjectAs);
+                    ui.close();
+                }
+                ui.separator();
+                if ui.button("Load Image…").clicked() {
+                    crate::ui::panel::load_image(state, ctx, actions);
+                    ui.close();
+                }
+                if ui.button("Paste Image").clicked() {
+                    paste_clipboard_image(state, ctx, actions);
+                    ui.close();
+                }
+                ui.separator();
+                if ui.button("Export CSV…").clicked() {
+                    actions.push(Action::RequestExportCsv);
+                    ui.close();
+                }
+            });
 
+            ui.menu_button("About", |ui| {
+                if ui.button("About PlotRedox").clicked() {
+                    state.show_about = true;
+                    ui.close();
+                }
+            });
+
+            ui.add_space(8.0);
+            ui.label("||");
+            ui.add_space(8.0);
+
+            // ── Quick-Access Toolbar Buttons ──────────────────────
             let is_dark = ctx.style().visuals.dark_mode;
             let icon = if is_dark { "\u{2600}" } else { "\u{1F319}" };
-            if ui.button(icon).clicked() {
+            if ui.button(icon).on_hover_text("Toggle Theme").clicked() {
                 if is_dark {
                     ctx.set_visuals(egui::Visuals::light());
                 } else {
                     ctx.set_visuals(egui::Visuals::dark());
                 }
             }
-            ui.add_space(10.0);
 
-            if ui.button("Load Image").clicked() {
-                if state.texture.is_some() {
-                    state.pending_load_kind = Some("file".to_string());
-                } else {
-                    crate::ui::panel::load_image(ctx, actions);
-                }
+            if ui
+                .button("Load Image")
+                .on_hover_text("Load image from file")
+                .clicked()
+            {
+                crate::ui::panel::load_image(state, ctx, actions);
             }
-            if ui.button("Paste Image").clicked() {
-                if state.texture.is_some() {
-                    state.pending_load_kind = Some("clipboard".to_string());
-                } else {
-                    paste_clipboard_image(state, ctx, actions);
-                }
+            if ui
+                .button("Paste Image")
+                .on_hover_text("Paste image from clipboard")
+                .clicked()
+            {
+                paste_clipboard_image(state, ctx, actions);
             }
-            ui.add_space(10.0);
+            if ui.button("Save").on_hover_text("Save Project").clicked() {
+                actions.push(Action::SaveProject);
+            }
 
             // Right-aligned IDE toggle
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -94,7 +187,6 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                 }
             });
         });
-        ui.add_space(8.0);
     });
 
     // Left Sidebar for Control Panels (full height — drawn before IDE bottom panel)
@@ -107,19 +199,18 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
     // Central Image Viewport Canvas & Toolbar (CentralPanel — must be last)
     canvas::draw_canvas(state, ctx, actions);
 
-    // Pre-load confirmation modal (shown BEFORE file picker / clipboard paste)
-    let mut do_load_file = false;
-    let mut do_paste_clip = false;
-    if state.pending_load_kind.is_some() {
-        let kind = state.pending_load_kind.clone().unwrap();
-        let modal = egui::Modal::new(egui::Id::new("modal_preload")).show(ctx, |ui| {
-            ui.set_width(350.0);
+    // Unsaved-changes modal — shown when a destructive action is pending while dirty
+    let mut do_save_then_proceed = false;
+    let mut do_proceed_no_save = false;
+    if state.pending_action.is_some() {
+        let modal = egui::Modal::new(egui::Id::new("modal_unsaved")).show(ctx, |ui| {
+            ui.set_width(380.0);
             ui.vertical_centered(|ui| {
-                ui.heading("⚠ Warning");
+                ui.heading("⚠ Unsaved Changes");
             });
             ui.add_space(8.0);
-            ui.label("Loading a new image will clear your current workspace.");
-            ui.label("Are you sure you want to proceed?");
+            ui.label("Your project has unsaved changes.");
+            ui.label("Would you like to save before proceeding?");
             ui.add_space(10.0);
             ui.separator();
 
@@ -130,33 +221,35 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                     if ui.button("Cancel").clicked() {
                         ui.close();
                     }
-                    let confirm_btn = egui::Button::new(
-                        egui::RichText::new("Confirm").color(egui::Color32::WHITE),
+                    let dont_save_btn = egui::Button::new(
+                        egui::RichText::new("Don't Save").color(egui::Color32::WHITE),
                     )
                     .fill(egui::Color32::from_rgb(200, 50, 50));
-                    if ui.add(confirm_btn).clicked() {
-                        if kind == "file" {
-                            do_load_file = true;
-                        } else {
-                            do_paste_clip = true;
-                        }
+                    if ui.add(dont_save_btn).clicked() {
+                        do_proceed_no_save = true;
+                        ui.close();
+                    }
+                    let save_btn =
+                        egui::Button::new(egui::RichText::new("Save").color(egui::Color32::WHITE))
+                            .fill(egui::Color32::from_rgb(0, 150, 0));
+                    if ui.add(save_btn).clicked() {
+                        do_save_then_proceed = true;
                         ui.close();
                     }
                 },
             );
         });
-        if modal.should_close() {
-            state.pending_load_kind = None;
+        if modal.should_close() && !do_save_then_proceed && !do_proceed_no_save {
+            state.pending_action = None;
         }
     }
-    // Execute after modal closure to avoid borrow conflicts
-    if do_load_file {
-        state.pending_load_kind = None;
-        crate::ui::panel::load_image(ctx, actions);
+    // Execute deferred actions after modal closure to avoid borrow conflicts
+    if do_save_then_proceed {
+        actions.push(Action::SaveProject);
+        execute_pending_action(state, ctx, actions);
     }
-    if do_paste_clip {
-        state.pending_load_kind = None;
-        paste_clipboard_image(state, ctx, actions);
+    if do_proceed_no_save {
+        execute_pending_action(state, ctx, actions);
     }
 
     // Modal dialog for overwriting existing workspace (drag-drop / keyboard paste flow)
@@ -260,6 +353,67 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
             state.show_clipboard_empty = false;
         }
     }
+
+    // About dialog
+    if state.show_about {
+        let modal = egui::Modal::new(egui::Id::new("modal_about")).show(ctx, |ui| {
+            ui.set_width(360.0);
+            ui.vertical_centered(|ui| {
+                ui.add_space(8.0);
+                ui.heading("PlotRedox");
+                ui.add_space(4.0);
+                ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
+                ui.add_space(8.0);
+            });
+            ui.label(env!("CARGO_PKG_DESCRIPTION"));
+            ui.add_space(8.0);
+            ui.label("Authors: Qiu Shou");
+            ui.label("License: MIT");
+            ui.add_space(4.0);
+            ui.hyperlink_to("GitHub Repository", "https://github.com/elechou/PlotOxide");
+            ui.add_space(10.0);
+            ui.separator();
+            ui.vertical_centered(|ui| {
+                if ui.button("OK").clicked() {
+                    ui.close();
+                }
+            });
+        });
+        if modal.should_close() {
+            state.show_about = false;
+        }
+    }
+}
+
+/// Execute the deferred pending action after unsaved-changes modal resolution.
+fn execute_pending_action(
+    state: &mut crate::state::AppState,
+    ctx: &egui::Context,
+    actions: &mut Vec<Action>,
+) {
+    use crate::state::PendingAction;
+    if let Some(pending) = state.pending_action.take() {
+        // Mark not dirty so the action can proceed cleanly
+        state.dirty = false;
+        match pending {
+            PendingAction::NewProject => {
+                actions.push(Action::NewProject);
+            }
+            PendingAction::LoadImage(path, tex, size) => {
+                actions.push(Action::LoadImage(path, tex, size));
+                actions.push(Action::RequestCenter);
+                actions.push(Action::SetMode(crate::state::AppMode::AddCalib));
+            }
+            PendingAction::OpenProject(data, img_bytes, path) => {
+                crate::project::apply_project(state, data, &img_bytes, path.clone(), ctx);
+                state.project_path = Some(path);
+                state.dirty = false;
+            }
+            PendingAction::CloseApp => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+        }
+    }
 }
 
 /// Helper: paste image from clipboard and push LoadImage actions directly
@@ -279,16 +433,36 @@ fn paste_clipboard_image(
                     .to_rgba8()
                     .expect("Failed to convert clipboard image to RGBA");
                 let bytes = rgba.into_raw();
+
+                // Encode to PNG and cache for project save
+                let mut png_buf = Vec::new();
+                {
+                    let encoder = image::codecs::png::PngEncoder::new(&mut png_buf);
+                    use image::ImageEncoder;
+                    let _ =
+                        encoder.write_image(&bytes, w as u32, h as u32, image::ColorType::Rgba8);
+                }
+                state.raw_image_bytes = Some(png_buf);
+
                 let color_image = egui::ColorImage::from_rgba_unmultiplied(size, &bytes);
                 let handle = ctx.load_texture("clipboard_image", color_image, Default::default());
                 let img_size = eframe::egui::Vec2::new(size[0] as f32, size[1] as f32);
-                actions.push(Action::LoadImage(
-                    std::path::PathBuf::from("Clipboard"),
-                    handle,
-                    img_size,
-                ));
-                actions.push(Action::RequestCenter);
-                actions.push(Action::SetMode(crate::state::AppMode::AddCalib));
+
+                if state.dirty {
+                    state.pending_action = Some(crate::state::PendingAction::LoadImage(
+                        std::path::PathBuf::from("Clipboard"),
+                        handle,
+                        img_size,
+                    ));
+                } else {
+                    actions.push(Action::LoadImage(
+                        std::path::PathBuf::from("Clipboard"),
+                        handle,
+                        img_size,
+                    ));
+                    actions.push(Action::RequestCenter);
+                    actions.push(Action::SetMode(crate::state::AppMode::AddCalib));
+                }
                 found = true;
             }
         }

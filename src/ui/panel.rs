@@ -495,29 +495,17 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
         });
 }
 
-pub fn load_image(ctx: &egui::Context, actions: &mut Vec<Action>) {
+pub fn load_image(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
     if let Some(path) = FileDialog::new()
         .add_filter("image", &["png", "jpg", "jpeg"])
         .pick_file()
     {
-        if let Ok(img) = image::open(&path) {
-            let img = img.to_rgba8();
-            let size = [img.width() as _, img.height() as _];
-            let pixels = img.as_flat_samples();
-            let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
-            let handle = ctx.load_texture("main_image", color_image, Default::default());
-            actions.push(Action::LoadImage(
-                path,
-                handle,
-                Vec2::new(size[0] as f32, size[1] as f32),
-            ));
-            actions.push(Action::RequestCenter);
-            actions.push(Action::SetMode(crate::state::AppMode::AddCalib));
-        }
+        process_image_file(state, path, ctx, actions);
     }
 }
 
 pub fn process_image_file(
+    state: &mut AppState,
     path: std::path::PathBuf,
     ctx: &egui::Context,
     actions: &mut Vec<Action>,
@@ -528,11 +516,21 @@ pub fn process_image_file(
         let pixels = img.as_flat_samples();
         let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
         let handle = ctx.load_texture("main_image", color_image, Default::default());
-        actions.push(Action::SetPendingImage(
-            path,
-            handle,
-            Vec2::new(size[0] as f32, size[1] as f32),
-        ));
+
+        if state.dirty {
+            let img_size = eframe::egui::Vec2::new(size[0] as f32, size[1] as f32);
+            state.pending_action = Some(crate::state::PendingAction::LoadImage(
+                path, handle, img_size,
+            ));
+        } else {
+            actions.push(Action::LoadImage(
+                path,
+                handle,
+                Vec2::new(size[0] as f32, size[1] as f32),
+            ));
+            actions.push(Action::RequestCenter);
+            actions.push(Action::SetMode(crate::state::AppMode::AddCalib));
+        }
     }
 }
 

@@ -1,10 +1,12 @@
-#[derive(Clone, Copy)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct CalibPoint {
     pub px: f32,
     pub py: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DataPoint {
     pub px: f32,
     pub py: f32,
