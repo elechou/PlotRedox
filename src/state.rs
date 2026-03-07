@@ -203,13 +203,13 @@ impl Default for AppState {
 }
 
 impl AppState {
-    /// Returns the project display name (filename stem or "Untitled").
+    /// Returns the project display name (filename stem or "untitled").
     pub fn project_name(&self) -> String {
         self.project_path
             .as_ref()
             .and_then(|p| p.file_stem())
             .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| "Untitled".to_string())
+            .unwrap_or_else(|| "untitled".to_string())
     }
 
     /// Returns the window title: "PlotRedox — name" with "*" if dirty.

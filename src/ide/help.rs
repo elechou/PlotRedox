@@ -291,6 +291,8 @@ fn render_table(ui: &mut egui::Ui, rows: &[Vec<String>], table_index: usize) {
 fn render_inline(ui: &mut egui::Ui, text: &str) {
     // For simplicity, render as a single label with inline code highlighted
     let mut job = egui::text::LayoutJob::default();
+    let text_color = ui.visuals().text_color();
+    let text_font = egui::TextStyle::Body.resolve(ui.style());
     let code_color = egui::Color32::from_rgb(0xE0, 0x6C, 0x75);
     let code_bg = ui.visuals().extreme_bg_color;
 
@@ -307,6 +309,8 @@ fn render_inline(ui: &mut egui::Ui, text: &str) {
                     &segment,
                     0.0,
                     egui::TextFormat {
+                        font_id: text_font.clone(),
+                        color: text_color,
                         ..Default::default()
                     },
                 );
@@ -341,6 +345,8 @@ fn render_inline(ui: &mut egui::Ui, text: &str) {
                     &segment,
                     0.0,
                     egui::TextFormat {
+                        font_id: text_font.clone(),
+                        color: text_color,
                         ..Default::default()
                     },
                 );
@@ -359,7 +365,8 @@ fn render_inline(ui: &mut egui::Ui, text: &str) {
                 &bold_text,
                 0.0,
                 egui::TextFormat {
-                    font_id: egui::FontId::proportional(14.0),
+                    font_id: egui::FontId::proportional(text_font.size + 1.0),
+                    color: text_color,
                     ..Default::default()
                 },
             );
@@ -376,6 +383,8 @@ fn render_inline(ui: &mut egui::Ui, text: &str) {
             &segment,
             0.0,
             egui::TextFormat {
+                font_id: text_font.clone(),
+                color: text_color,
                 ..Default::default()
             },
         );

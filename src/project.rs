@@ -71,7 +71,7 @@ pub fn save_project_as(state: &AppState) -> Option<PathBuf> {
         .as_ref()
         .and_then(|p| p.file_stem())
         .map(|s| format!("{}.prdx", s.to_string_lossy()))
-        .unwrap_or_else(|| "Untitled.prdx".to_string());
+        .unwrap_or_else(|| "untitled.prdx".to_string());
 
     if let Some(path) = FileDialog::new()
         .set_file_name(&default_name)

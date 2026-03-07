@@ -150,13 +150,21 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
 
             // ── Quick-Access Toolbar Buttons ──────────────────────
             let is_dark = ctx.style().visuals.dark_mode;
-            let icon = if is_dark { "\u{2600}" } else { "\u{1F319}" };
+            let icon = if is_dark { "\u{1F506}" } else { "\u{1F319}" };
             if ui.button(icon).on_hover_text("Toggle Theme").clicked() {
                 if is_dark {
                     ctx.set_visuals(egui::Visuals::light());
                 } else {
                     ctx.set_visuals(egui::Visuals::dark());
                 }
+            }
+
+            if ui
+                .button("\u{1F4BE}")
+                .on_hover_text("Save Project")
+                .clicked()
+            {
+                actions.push(Action::SaveProject);
             }
 
             if ui
@@ -172,9 +180,6 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                 .clicked()
             {
                 paste_clipboard_image(state, ctx, actions);
-            }
-            if ui.button("Save").on_hover_text("Save Project").clicked() {
-                actions.push(Action::SaveProject);
             }
 
             // Right-aligned IDE toggle
