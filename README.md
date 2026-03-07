@@ -154,15 +154,18 @@ The build system (`build.rs`) automatically scans the `example_scripts/` directo
 ```
 PlotRedox/
 ├── src/
-│   ├── main.rs           # Application entry point
+│   ├── main.rs           # Application entry point & module declarations
+│   ├── action.rs         # Action enum definitions for global events
+│   ├── action_handler.rs # Core application logic (Action -> State)
 │   ├── core.rs           # Calibration math and coordinate mapping
-│   ├── state.rs          # Application state with undo/redo
-│   ├── action.rs         # Action definitions for state updates
+│   ├── state.rs          # Runtime state data structures
 │   ├── ui/
-│   │   ├── mod.rs        # Main UI layout and modals
+│   │   ├── mod.rs        # UI root & orchestration
+│   │   ├── top_panel.rs  # Menu bar & quick-access toolbar
+│   │   ├── modals.rs     # Centralized modal dialogs
 │   │   ├── panel.rs      # Left sidebar (calibration, groups, data)
 │   │   ├── canvas.rs     # Image viewport and interaction
-│   │   └── toolbar.rs    # Mode toolbar (Select, Add, Delete, Pan)
+│   │   └── toolbar.rs    # Canvas mode toolbar (Select, Add, Pan)
 │   ├── ide/
 │   │   ├── mod.rs        # IDE panel layout
 │   │   ├── editor.rs     # Code editor with syntax highlighting
