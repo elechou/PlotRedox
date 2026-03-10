@@ -4,6 +4,167 @@ use eframe::egui::{Color32, TextureHandle, Vec2};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+// ── Mask types ─────────────────────────────────────────────────────────
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum MaskTool {
+    Pen,
+    Eraser,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum AxisHighlight {
+    X,
+    Y,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum DataCurveMode {
+    Continuous,
+    Scatter,
+}
+
+#[derive(Clone, Debug)]
+pub struct AxisDetectionResult {
+    /// Detected X-axis: (start_img_x, start_img_y) to (end_img_x, end_img_y)
+    pub x_axis: Option<((f32, f32), (f32, f32))>,
+    /// Detected Y-axis: (start_img_x, start_img_y) to (end_img_x, end_img_y)
+    pub y_axis: Option<((f32, f32), (f32, f32))>,
+    /// Pixel coords of detected X-axis line (for highlighting)
+    pub x_axis_pixels: Vec<(u32, u32)>,
+    /// Pixel coords of detected Y-axis line (for highlighting)
+    pub y_axis_pixels: Vec<(u32, u32)>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DetectedColorGroup {
+    pub color: [u8; 3],
+    pub pixel_coords: Vec<(u32, u32)>,
+    pub curve_mode: DataCurveMode,
+    pub point_count: usize,
+    /// Sampled points in image coordinates
+    pub sampled_points: Vec<(f32, f32)>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DataDetectionResult {
+    pub groups: Vec<DetectedColorGroup>,
+}
+
+#[derive(Clone)]
+pub struct MaskState {
+    /// Mask buffer: true = masked pixel (image coordinates)
+    pub buffer: Vec<bool>,
+    pub width: u32,
+    pub height: u32,
+
+    /// Is mask mode active (sub-toolbar visible)
+    pub active: bool,
+    /// Current tool
+    pub tool: MaskTool,
+    /// Brush radius in image pixels
+    pub brush_size: f32,
+    /// Show/hide overlay
+    pub visible: bool,
+    /// Currently painting (mouse held down)
+    pub painting: bool,
+    /// Previous mouse position for interpolation
+    pub last_paint_pos: Option<(f32, f32)>,
+
+    /// Undo stack for mask strokes
+    pub undo_stack: Vec<Vec<bool>>,
+    /// Redo stack for mask strokes
+    pub redo_stack: Vec<Vec<bool>>,
+
+    /// Detected background color of the image
+    pub bg_color: Option<[u8; 3]>,
+    /// Cached axis detection result
+    pub axis_result: Option<AxisDetectionResult>,
+    /// Cached data detection result
+    pub data_result: Option<DataDetectionResult>,
+
+    /// Which axis to highlight on hover
+    pub highlight_axis: Option<AxisHighlight>,
+    /// Which data color group to highlight on hover
+    pub highlight_data_idx: Option<usize>,
+}
+
+impl Default for MaskState {
+    fn default() -> Self {
+        Self {
+            buffer: Vec::new(),
+            width: 0,
+            height: 0,
+            active: false,
+            tool: MaskTool::Pen,
+            brush_size: 20.0,
+            visible: true,
+            painting: false,
+            last_paint_pos: None,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            bg_color: None,
+            axis_result: None,
+            data_result: None,
+            highlight_axis: None,
+            highlight_data_idx: None,
+        }
+    }
+}
+
+impl MaskState {
+    /// Initialize or resize the mask buffer to match the image dimensions.
+    pub fn ensure_buffer(&mut self, w: u32, h: u32) {
+        if self.width != w || self.height != h {
+            self.width = w;
+            self.height = h;
+            self.buffer = vec![false; (w as usize) * (h as usize)];
+            self.undo_stack.clear();
+            self.redo_stack.clear();
+        }
+    }
+
+    /// Paint a filled circle onto the mask buffer.
+    pub fn paint_circle(&mut self, cx: f32, cy: f32, radius: f32, value: bool) {
+        let r = radius as i32;
+        let cx_i = cx as i32;
+        let cy_i = cy as i32;
+        let w = self.width as i32;
+        let h = self.height as i32;
+
+        for dy in -r..=r {
+            for dx in -r..=r {
+                if dx * dx + dy * dy <= r * r {
+                    let px = cx_i + dx;
+                    let py = cy_i + dy;
+                    if px >= 0 && px < w && py >= 0 && py < h {
+                        self.buffer[(py as usize) * (self.width as usize) + (px as usize)] = value;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Paint a line from (x0, y0) to (x1, y1) with the given brush radius.
+    pub fn paint_line(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, radius: f32, value: bool) {
+        let dx = x1 - x0;
+        let dy = y1 - y0;
+        let dist = (dx * dx + dy * dy).sqrt();
+        let steps = (dist / (radius * 0.3)).ceil().max(1.0) as usize;
+
+        for i in 0..=steps {
+            let t = i as f32 / steps as f32;
+            let cx = x0 + dx * t;
+            let cy = y0 + dy * t;
+            self.paint_circle(cx, cy, radius, value);
+        }
+    }
+
+    pub fn has_any_mask(&self) -> bool {
+        self.buffer.iter().any(|&b| b)
+    }
+}
+
 // ── Serializable mirror types (no egui dependency) ─────────────────────
 
 #[derive(Clone, Serialize, Deserialize, Default)]
@@ -64,6 +225,7 @@ pub enum AppMode {
     AddData,
     Delete,
     Pan,
+    Mask,
 }
 
 /// Actions that are deferred until unsaved-changes confirmation is resolved.
@@ -95,6 +257,8 @@ pub struct AppState {
     pub raw_image_bytes: Option<Vec<u8>>,
     pub clipboard_rgba: Option<(Vec<u8>, u32, u32)>, // For lazily encoding pasted images
     pub pending_image: Option<(PathBuf, TextureHandle, Vec2)>,
+    /// Decoded RGBA pixel data (w * h * 4 bytes) for mask analysis
+    pub decoded_rgba: Option<Vec<u8>>,
 
     // Viewport transform (Panning & Zooming)
     pub pan: Vec2,
@@ -151,6 +315,9 @@ pub struct AppState {
 
     // IDE State
     pub ide: IdeState,
+
+    // Mask State
+    pub mask: MaskState,
 }
 
 #[derive(Clone)]
@@ -190,6 +357,7 @@ impl Default for AppState {
             raw_image_bytes: None,
             clipboard_rgba: None,
             pending_image: None,
+            decoded_rgba: None,
             pan: Vec2::ZERO,
             zoom: 1.0,
             calib_pts: Vec::new(),
@@ -223,6 +391,7 @@ impl Default for AppState {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             ide: IdeState::default(),
+            mask: MaskState::default(),
         }
     }
 }

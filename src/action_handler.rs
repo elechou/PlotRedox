@@ -446,8 +446,26 @@ pub fn handle(state: &mut AppState, action: Action) {
                 None
             };
 
+            // Decode image to RGBA for mask analysis
+            let decoded_rgba = bytes.as_ref().and_then(|b| {
+                image::load_from_memory(b).ok().map(|img| {
+                    img.to_rgba8().into_raw()
+                })
+            });
+
             let mut new_state = AppState::default();
+            // Detect background color from decoded RGBA
+            if let Some(ref rgba) = decoded_rgba {
+                new_state.mask.bg_color = Some(
+                    crate::ui::mask::analysis::detect_background_color(
+                        rgba,
+                        size.x as u32,
+                        size.y as u32,
+                    ),
+                );
+            }
             new_state.raw_image_bytes = bytes;
+            new_state.decoded_rgba = decoded_rgba;
             new_state.image_path = Some(path);
             new_state.texture = Some(tex);
             new_state.img_size = size;
@@ -456,6 +474,12 @@ pub fn handle(state: &mut AppState, action: Action) {
         }
         Action::LoadClipboardImage(tex, size, bytes, w, h) => {
             let mut new_state = AppState::default();
+            // Store decoded RGBA directly from clipboard data
+            new_state.decoded_rgba = Some(bytes.clone());
+            // Detect background color
+            new_state.mask.bg_color = Some(
+                crate::ui::mask::analysis::detect_background_color(&bytes, w, h),
+            );
             new_state.clipboard_rgba = Some((bytes, w, h));
             new_state.image_path = Some(std::path::PathBuf::from("Clipboard"));
             new_state.texture = Some(tex);
@@ -499,5 +523,249 @@ pub fn handle(state: &mut AppState, action: Action) {
             crate::ui::panel::export_csv(state);
         }
         Action::SaveProject | Action::SaveProjectAs | Action::OpenProject | Action::NewProject => {}
+
+        // ── Mask actions ──────────────────────────────────────────────
+        Action::MaskToggle => {
+            let was_active = state.mask.active;
+            state.mask.active = !was_active;
+            if state.mask.active {
+                // Switch to mask mode
+                state.mode = AppMode::Mask;
+                // Ensure mask buffer matches image size
+                if state.texture.is_some() {
+                    state
+                        .mask
+                        .ensure_buffer(state.img_size.x as u32, state.img_size.y as u32);
+                }
+            } else {
+                // Leave mask mode, go back to Select
+                if state.mode == AppMode::Mask {
+                    state.mode = AppMode::Select;
+                }
+            }
+        }
+        Action::MaskSetTool(tool) => {
+            state.mask.tool = tool;
+        }
+        Action::MaskSetBrushSize(size) => {
+            state.mask.brush_size = size;
+        }
+        Action::MaskToggleVisibility => {
+            state.mask.visible = !state.mask.visible;
+        }
+        Action::MaskClear => {
+            if state.mask.has_any_mask() {
+                // Save snapshot before clearing
+                state.mask.undo_stack.push(state.mask.buffer.clone());
+                if state.mask.undo_stack.len() > 30 {
+                    state.mask.undo_stack.remove(0);
+                }
+                state.mask.redo_stack.clear();
+            }
+            state.mask.buffer.fill(false);
+            state.mask.axis_result = None;
+            state.mask.data_result = None;
+        }
+        Action::MaskPaintStart => {
+            // Save current buffer as undo snapshot before painting
+            state.mask.undo_stack.push(state.mask.buffer.clone());
+            if state.mask.undo_stack.len() > 30 {
+                state.mask.undo_stack.remove(0);
+            }
+            state.mask.redo_stack.clear();
+            state.mask.painting = true;
+            state.mask.last_paint_pos = None;
+        }
+        Action::MaskPaintStroke { x, y } => {
+            if state.mask.width == 0 || state.mask.height == 0 {
+                return;
+            }
+            let value = state.mask.tool == crate::state::MaskTool::Pen;
+            let radius = state.mask.brush_size;
+
+            if let Some((lx, ly)) = state.mask.last_paint_pos {
+                // Interpolate from last position to current
+                state.mask.paint_line(lx, ly, x, y, radius, value);
+            } else {
+                // First point of stroke
+                state.mask.paint_circle(x, y, radius, value);
+            }
+            state.mask.last_paint_pos = Some((x, y));
+        }
+        Action::MaskPaintEnd => {
+            state.mask.painting = false;
+            state.mask.last_paint_pos = None;
+            // Trigger analysis if there's mask content and decoded RGBA data
+            if state.mask.has_any_mask() {
+                if let Some(ref rgba) = state.decoded_rgba {
+                    let w = state.mask.width;
+                    let h = state.mask.height;
+                    let bg = state.mask.bg_color.unwrap_or([255, 255, 255]);
+                    state.mask.axis_result = Some(
+                        crate::ui::mask::analysis::analyze_mask_for_axes(
+                            rgba, &state.mask.buffer, w, h, bg,
+                        ),
+                    );
+                    state.mask.data_result = Some(
+                        crate::ui::mask::analysis::analyze_mask_for_data(
+                            rgba, &state.mask.buffer, w, h, bg,
+                        ),
+                    );
+                }
+            } else {
+                state.mask.axis_result = None;
+                state.mask.data_result = None;
+            }
+        }
+        Action::MaskUndo => {
+            if let Some(prev_buffer) = state.mask.undo_stack.pop() {
+                state.mask.redo_stack.push(state.mask.buffer.clone());
+                state.mask.buffer = prev_buffer;
+                state.mask.axis_result = None;
+                state.mask.data_result = None;
+            }
+        }
+        Action::MaskRedo => {
+            if let Some(next_buffer) = state.mask.redo_stack.pop() {
+                state.mask.undo_stack.push(state.mask.buffer.clone());
+                state.mask.buffer = next_buffer;
+                state.mask.axis_result = None;
+                state.mask.data_result = None;
+            }
+        }
+
+        // ── Mask Axis Detection ──
+        Action::MaskSetAxisHighlight(hl) => {
+            state.mask.highlight_axis = hl;
+        }
+        Action::MaskApplyAxis(axis) => {
+            // Clone the endpoints out before mutating state
+            let endpoints = state.mask.axis_result.as_ref().and_then(|result| {
+                match axis {
+                    crate::state::AxisHighlight::X => result.x_axis,
+                    crate::state::AxisHighlight::Y => result.y_axis,
+                }
+            });
+
+            if let Some((start, end)) = endpoints {
+                state.save_snapshot();
+                match axis {
+                    crate::state::AxisHighlight::X => {
+                        let x1 = crate::core::CalibPoint { px: start.0, py: start.1 };
+                        let x2 = crate::core::CalibPoint { px: end.0, py: end.1 };
+                        while state.calib_pts.len() < 2 {
+                            state.calib_pts.push(crate::core::CalibPoint { px: 0.0, py: 0.0 });
+                        }
+                        state.calib_pts[0] = x1;
+                        state.calib_pts[1] = x2;
+                    }
+                    crate::state::AxisHighlight::Y => {
+                        let y1 = crate::core::CalibPoint { px: start.0, py: start.1 };
+                        let y2 = crate::core::CalibPoint { px: end.0, py: end.1 };
+                        while state.calib_pts.len() < 4 {
+                            state.calib_pts.push(crate::core::CalibPoint { px: 0.0, py: 0.0 });
+                        }
+                        state.calib_pts[2] = y1;
+                        state.calib_pts[3] = y2;
+                    }
+                }
+                crate::core::recalculate_data(
+                    &state.calib_pts,
+                    &mut state.data_pts,
+                    &state.x1_val,
+                    &state.x2_val,
+                    &state.y1_val,
+                    &state.y2_val,
+                    state.log_x,
+                    state.log_y,
+                );
+                state.dirty = true;
+            }
+        }
+
+        // ── Mask Data Recognition ──
+        Action::MaskSetDataHighlight(idx) => {
+            state.mask.highlight_data_idx = idx;
+        }
+        Action::MaskSetDataMode(idx, mode) => {
+            if let Some(ref mut result) = state.mask.data_result {
+                if let Some(group) = result.groups.get_mut(idx) {
+                    group.curve_mode = mode;
+                    // Resample points based on new mode
+                    match mode {
+                        crate::state::DataCurveMode::Continuous => {
+                            group.sampled_points =
+                                crate::ui::mask::analysis::sample_points_from_cluster(
+                                    &group.pixel_coords,
+                                    group.point_count,
+                                    state.mask.width,
+                                );
+                        }
+                        crate::state::DataCurveMode::Scatter => {
+                            // For scatter, use all unique points (centroid per column)
+                            group.sampled_points =
+                                crate::ui::mask::analysis::sample_points_from_cluster(
+                                    &group.pixel_coords,
+                                    group.pixel_coords.len(),
+                                    state.mask.width,
+                                );
+                        }
+                    }
+                }
+            }
+        }
+        Action::MaskSetDataPoints(idx, count) => {
+            if let Some(ref mut result) = state.mask.data_result {
+                if let Some(group) = result.groups.get_mut(idx) {
+                    group.point_count = count;
+                    // Resample with new count
+                    group.sampled_points =
+                        crate::ui::mask::analysis::sample_points_from_cluster(
+                            &group.pixel_coords,
+                            count,
+                            state.mask.width,
+                        );
+                }
+            }
+        }
+        Action::MaskAddData(idx) => {
+            // Clone the sampled points before mutating state
+            let points = state.mask.data_result.as_ref().and_then(|result| {
+                result.groups.get(idx).map(|group| group.sampled_points.clone())
+            });
+
+            if let Some(pts) = points {
+                if !pts.is_empty() {
+                    state.save_snapshot();
+                    if state.groups.is_empty() {
+                        state.groups.push(PointGroup {
+                            name: "Group 1".to_string(),
+                            color: Color32::from_rgb(0xd7, 0x30, 0x27),
+                        });
+                        state.active_group_idx = 0;
+                    }
+                    for (px, py) in pts {
+                        state.data_pts.push(crate::core::DataPoint {
+                            px,
+                            py,
+                            lx: 0.0,
+                            ly: 0.0,
+                            group_id: state.active_group_idx,
+                        });
+                    }
+                    crate::core::recalculate_data(
+                        &state.calib_pts,
+                        &mut state.data_pts,
+                        &state.x1_val,
+                        &state.x2_val,
+                        &state.y1_val,
+                        &state.y2_val,
+                        state.log_x,
+                        state.log_y,
+                    );
+                    state.dirty = true;
+                }
+            }
+        }
     }
 }

@@ -86,4 +86,26 @@ pub enum Action {
     ClearCalib,
     UpdateCalibAxis(String, String), // axis identifier, value
     UpdateLogScale(bool, bool),      // log_x, log_y
+
+    // Mask Operations
+    MaskToggle,
+    MaskSetTool(crate::state::MaskTool),
+    MaskSetBrushSize(f32),
+    MaskToggleVisibility,
+    MaskClear,
+    MaskPaintStart,
+    MaskPaintStroke { x: f32, y: f32 },
+    MaskPaintEnd,
+    MaskUndo,
+    MaskRedo,
+
+    // Mask Axis Detection
+    MaskSetAxisHighlight(Option<crate::state::AxisHighlight>),
+    MaskApplyAxis(crate::state::AxisHighlight),
+
+    // Mask Data Recognition
+    MaskSetDataHighlight(Option<usize>),
+    MaskSetDataMode(usize, crate::state::DataCurveMode),
+    MaskSetDataPoints(usize, usize),
+    MaskAddData(usize),
 }

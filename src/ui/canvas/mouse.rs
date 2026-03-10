@@ -42,6 +42,11 @@ pub fn handle_mouse(
             is_panning = true;
         }
 
+        // In mask mode, right-click/middle-click still pans
+        if state.mode == AppMode::Mask {
+            // Pan via right/middle is already handled above
+        }
+
         if is_panning {
             new_pan += response.drag_delta();
         }
@@ -52,6 +57,12 @@ pub fn handle_mouse(
                 zoom: new_zoom,
             });
         }
+    }
+
+    // --- Mask mode: painting ---
+    if state.mode == AppMode::Mask {
+        handle_mask_mouse(state, ctx, response, actions);
+        return; // Don't process normal click/drag logic in mask mode
     }
 
     // --- Hit testing ---
@@ -270,5 +281,43 @@ pub fn handle_mouse(
         if response.drag_stopped() && state.box_start.is_some() {
             actions.push(Action::SetBoxStart(None));
         }
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Mask-mode mouse handling
+// ────────────────────────────────────────────────────────────────
+
+fn handle_mask_mouse(
+    state: &AppState,
+    ctx: &egui::Context,
+    response: &egui::Response,
+    actions: &mut Vec<Action>,
+) {
+    // Only paint with left mouse button
+    if response.drag_started_by(egui::PointerButton::Primary) {
+        actions.push(Action::MaskPaintStart);
+        // Paint at the starting position
+        if let Some(mouse_pos) = ctx.input(|i| i.pointer.interact_pos()) {
+            let rect_min = response.rect.min;
+            let img_pt = mouse_pos - rect_min - state.pan;
+            let img_x = img_pt.x / state.zoom;
+            let img_y = img_pt.y / state.zoom;
+            actions.push(Action::MaskPaintStroke { x: img_x, y: img_y });
+        }
+    }
+
+    if response.dragged_by(egui::PointerButton::Primary) {
+        if let Some(mouse_pos) = ctx.input(|i| i.pointer.hover_pos()) {
+            let rect_min = response.rect.min;
+            let img_pt = mouse_pos - rect_min - state.pan;
+            let img_x = img_pt.x / state.zoom;
+            let img_y = img_pt.y / state.zoom;
+            actions.push(Action::MaskPaintStroke { x: img_x, y: img_y });
+        }
+    }
+
+    if response.drag_stopped_by(egui::PointerButton::Primary) {
+        actions.push(Action::MaskPaintEnd);
     }
 }

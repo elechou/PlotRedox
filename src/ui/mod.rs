@@ -1,3 +1,4 @@
+pub mod mask;
 pub mod canvas;
 pub mod modals;
 pub mod panel;
@@ -37,7 +38,7 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
             actions.push(Action::SaveProject);
         }
 
-        // Undo / Redo
+        // Undo / Redo — route to mask undo when mask is painting
         let undo_cmd = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::Z);
         let undo_ctrl = egui::KeyboardShortcut::new(egui::Modifiers::CTRL, egui::Key::Z);
         let redo_cmd = egui::KeyboardShortcut::new(
@@ -50,9 +51,17 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
         );
 
         if i.consume_shortcut(&redo_cmd) || i.consume_shortcut(&redo_ctrl) {
-            actions.push(Action::Redo);
+            if state.mask.active {
+                actions.push(Action::MaskRedo);
+            } else {
+                actions.push(Action::Redo);
+            }
         } else if i.consume_shortcut(&undo_cmd) || i.consume_shortcut(&undo_ctrl) {
-            actions.push(Action::Undo);
+            if state.mask.active {
+                actions.push(Action::MaskUndo);
+            } else {
+                actions.push(Action::Undo);
+            }
         }
     });
 

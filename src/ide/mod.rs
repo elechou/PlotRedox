@@ -103,7 +103,7 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
                     let delta = handle_resp.drag_delta().x;
                     // dragged right => editor bigger, output smaller => fraction smaller
                     fraction -= delta / content_width;
-                    fraction = fraction.clamp(0.05, 0.95);
+                    fraction = fraction.clamp(0.1, 0.9);
                     state.ide.output_fraction = fraction;
                 }
 
@@ -112,34 +112,27 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
                     egui::vec2(output_width, available.height()),
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
-                        egui::Frame::NONE
-                            .inner_margin(egui::Margin {
-                                left: 6,
-                                right: 6,
-                                top: 0,
-                                bottom: 6,
-                            })
-                            .show(ui, |ui| {
-                                ui.strong("Output");
-                                ui.add_space(4.0);
-                                egui::ScrollArea::vertical()
-                                    .id_salt("ide_output_scroll")
-                                    .auto_shrink([false, false])
-                                    .show(ui, |ui| {
-                                        let mut safe_out = state.ide.output.clone();
-                                        if safe_out.len() > 5000 {
-                                            safe_out.truncate(5000);
-                                            safe_out.push_str("\n... (Output truncated)");
-                                        }
-                                        ui.add(
-                                            egui::Label::new(
-                                                egui::RichText::new(safe_out)
-                                                    .font(egui::FontId::monospace(14.0)),
-                                            )
-                                            .wrap(),
-                                        );
-                                    });
-                            });
+                        egui::Frame::NONE.show(ui, |ui| {
+                            ui.strong("Output");
+                            ui.add_space(4.0);
+                            egui::ScrollArea::vertical()
+                                .id_salt("ide_output_scroll")
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    let mut safe_out = state.ide.output.clone();
+                                    if safe_out.len() > 5000 {
+                                        safe_out.truncate(5000);
+                                        safe_out.push_str("\n... (Output truncated)");
+                                    }
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(safe_out)
+                                                .font(egui::FontId::monospace(14.0)),
+                                        )
+                                        .wrap(),
+                                    );
+                                });
+                        });
                     },
                 );
             });

@@ -45,6 +45,13 @@ pub fn draw_toolbar(
             {
                 actions.push(Action::SetMode(AppMode::Delete));
             }
+            if ui
+                .selectable_label(state.mask.active, "\u{1F17E} Mask")
+                .on_hover_text("Paint mask for axis detection & data recognition")
+                .clicked()
+            {
+                actions.push(Action::MaskToggle);
+            }
             let is_space_pressed = ui.ctx().input(|i| i.key_down(egui::Key::Space));
             if ui
                 .selectable_label(
