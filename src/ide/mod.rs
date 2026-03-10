@@ -57,38 +57,91 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
             // Workspace (left) — fixed width
             workspace::draw_workspace(state, ui, actions);
 
-            // Calculate 50/50 split for editor and output
-            let half_width = ui.available_width() / 2.0;
+            // Editor and Output proportional split
+            let available = ui.available_rect_before_wrap();
+            let mut fraction = state.ide.output_fraction;
+            let handle_width = 1.0;
 
-            // Output (right side of remaining space)
-            let max_output_width = (ui.available_width() - 150.0).max(100.0);
-            egui::SidePanel::right("ide_output")
-                .resizable(true)
-                .default_width(half_width)
-                .min_width(100.0)
-                .max_width(max_output_width)
-                .show_inside(ui, |ui| {
-                    ui.strong("Output");
-                    ui.add_space(4.0);
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            let mut safe_out = state.ide.output.clone();
-                            if safe_out.len() > 5000 {
-                                safe_out.truncate(5000);
-                                safe_out.push_str("\n... (Output truncated)");
-                            }
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(safe_out)
-                                        .font(egui::FontId::monospace(14.0)),
-                                )
-                                .wrap(),
-                            );
-                        });
-                });
+            let content_width = (available.width() - handle_width).max(10.0);
 
-            // Editor (center)
-            editor::draw_editor(state, ui, actions);
+            ui.horizontal(|ui| {
+                let editor_width = (content_width * (1.0 - fraction)).max(50.0);
+                let output_width = (content_width * fraction).max(50.0);
+
+                // Editor (left proportionally)
+                ui.allocate_ui_with_layout(
+                    egui::vec2(editor_width, available.height()),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        editor::draw_editor(state, ui, actions);
+                    },
+                );
+
+                // Drag handle (center)
+                let (handle_rect, handle_resp) = ui.allocate_exact_size(
+                    egui::vec2(handle_width, available.height()),
+                    egui::Sense::drag(),
+                );
+
+                // Draw a visual separator
+                let color = if handle_resp.hovered() || handle_resp.dragged() {
+                    ui.visuals().widgets.active.bg_fill
+                } else {
+                    ui.visuals().widgets.noninteractive.bg_stroke.color
+                };
+                ui.painter().vline(
+                    handle_rect.center().x,
+                    handle_rect.y_range(),
+                    egui::Stroke::new(1.0, color),
+                );
+
+                if handle_resp.hovered() || handle_resp.dragged() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+                }
+
+                if handle_resp.dragged() {
+                    let delta = handle_resp.drag_delta().x;
+                    // dragged right => editor bigger, output smaller => fraction smaller
+                    fraction -= delta / content_width;
+                    fraction = fraction.clamp(0.05, 0.95);
+                    state.ide.output_fraction = fraction;
+                }
+
+                // Output (right proportionally)
+                ui.allocate_ui_with_layout(
+                    egui::vec2(output_width, available.height()),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        egui::Frame::NONE
+                            .inner_margin(egui::Margin {
+                                left: 6,
+                                right: 6,
+                                top: 0,
+                                bottom: 6,
+                            })
+                            .show(ui, |ui| {
+                                ui.strong("Output");
+                                ui.add_space(4.0);
+                                egui::ScrollArea::vertical()
+                                    .id_salt("ide_output_scroll")
+                                    .auto_shrink([false, false])
+                                    .show(ui, |ui| {
+                                        let mut safe_out = state.ide.output.clone();
+                                        if safe_out.len() > 5000 {
+                                            safe_out.truncate(5000);
+                                            safe_out.push_str("\n... (Output truncated)");
+                                        }
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(safe_out)
+                                                    .font(egui::FontId::monospace(14.0)),
+                                            )
+                                            .wrap(),
+                                        );
+                                    });
+                            });
+                    },
+                );
+            });
         });
 }

@@ -169,7 +169,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                     .id_salt("data_panel_scroll")
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        let num_groups = state.groups.len();
+                        let _num_groups = state.groups.len();
                         for (g_idx, group) in state.groups.iter().enumerate() {
                             let frame = egui::Frame::NONE
                                 .inner_margin(4.0)
@@ -217,11 +217,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                             actions.push(Action::UpdateGroupColor(g_idx, col));
                                         }
 
-                                        let right_space = if num_groups > 1 {
-                                            24.0 /* trash */ + 60.0 /* count */
-                                        } else {
-                                            60.0
-                                        };
+                                        let right_space = 24.0 /* trash */ + 60.0 /* count */;
                                         let text_width =
                                             (ui.available_width() - right_space).max(40.0);
 
@@ -239,14 +235,12 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                         ui.with_layout(
                                             egui::Layout::right_to_left(egui::Align::Center),
                                             |ui| {
-                                                if num_groups > 1 {
-                                                    if ui
-                                                        .button("🗑")
-                                                        .on_hover_text("Delete Group")
-                                                        .clicked()
-                                                    {
-                                                        actions.push(Action::DeleteGroup(g_idx));
-                                                    }
+                                                if ui
+                                                    .button("🗑")
+                                                    .on_hover_text("Delete Group")
+                                                    .clicked()
+                                                {
+                                                    actions.push(Action::DeleteGroup(g_idx));
                                                 }
 
                                                 let count = state

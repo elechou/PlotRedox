@@ -3,7 +3,7 @@ name = "plot-redox"
 version = "0.1.5"
 edition = "2021"
 authors = ["Qiu Shou"]
-description = "Native absolute high-performance web plot digitizer alternative using Rust+egui"
+description = "Native high-performance plot digitizer alternative using Rust+egui"
 license = "MIT"
 
 [dependencies]

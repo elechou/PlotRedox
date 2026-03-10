@@ -158,6 +158,13 @@ pub fn handle(state: &mut AppState, action: Action) {
             }
         }
         Action::AddDataPoint { img_x, img_y } => {
+            if state.groups.is_empty() {
+                state.groups.push(PointGroup {
+                    name: "Group 1".to_string(),
+                    color: Color32::from_rgb(0xd7, 0x30, 0x27), // Palette 1
+                });
+                state.active_group_idx = 0;
+            }
             state.data_pts.push(DataPoint {
                 px: img_x,
                 py: img_y,

@@ -20,7 +20,7 @@ pub fn draw_editor(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<Ac
     egui::Frame::NONE
         .inner_margin(egui::Margin {
             left: 6,
-            right: 6,
+            right: 0,
             top: 0,
             bottom: 6,
         })
@@ -55,18 +55,20 @@ pub fn draw_editor(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<Ac
             let available_rows = (ui.available_height() / row_height).floor() as usize;
             let desired_rows = available_rows.max(10) + 1;
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                let editor = egui::TextEdit::multiline(&mut code)
-                    .font(egui::TextStyle::Monospace)
-                    .code_editor()
-                    .desired_rows(desired_rows)
-                    .lock_focus(true)
-                    .desired_width(f32::INFINITY)
-                    .layouter(&mut layouter)
-                    .background_color(editor_bg);
+            egui::ScrollArea::vertical()
+                .id_salt("ide_editor_scroll")
+                .show(ui, |ui| {
+                    let editor = egui::TextEdit::multiline(&mut code)
+                        .font(egui::TextStyle::Monospace)
+                        .code_editor()
+                        .desired_rows(desired_rows)
+                        .lock_focus(true)
+                        .desired_width(f32::INFINITY)
+                        .layouter(&mut layouter)
+                        .background_color(editor_bg);
 
-                ui.add(editor);
-            });
+                    ui.add(editor);
+                });
 
             if code != state.ide.code {
                 actions.push(Action::UpdateIDECode(code));

@@ -153,7 +153,7 @@ pub struct AppState {
     pub ide: IdeState,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct IdeState {
     pub is_open: bool,
     pub code: String,
@@ -162,6 +162,22 @@ pub struct IdeState {
     pub open_inspectors: std::collections::HashSet<String>,
     pub show_help: bool,
     pub user_scripts: Vec<(String, String)>, // (name, code)
+    pub output_fraction: f32,
+}
+
+impl Default for IdeState {
+    fn default() -> Self {
+        Self {
+            is_open: false,
+            code: String::new(),
+            output: String::new(),
+            workspace_vars: Vec::new(),
+            open_inspectors: std::collections::HashSet::new(),
+            show_help: false,
+            user_scripts: Vec::new(),
+            output_fraction: 0.5,
+        }
+    }
 }
 
 impl Default for AppState {

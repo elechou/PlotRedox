@@ -34,7 +34,9 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
                     actions.push(Action::SaveProjectAs);
                     ui.close();
                 }
-                ui.separator();
+            });
+
+            ui.menu_button("Edit", |ui| {
                 if ui.button("Load Image…").clicked() {
                     crate::ui::panel::load_image(state, ctx, actions);
                     ui.close();
@@ -58,7 +60,7 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
             });
 
             ui.add_space(8.0);
-            ui.label("||");
+            ui.add(egui::Label::new("||").selectable(false));
             ui.add_space(8.0);
 
             // ── Quick-Access Toolbar Buttons ──────────────────────
