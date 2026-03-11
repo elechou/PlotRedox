@@ -10,12 +10,16 @@ use crate::state::{AppState, AxisHighlight, MaskMode};
 // ────────────────────────────────────────────────────────────────
 
 pub fn draw_results_panel(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
-    if !state.mask.active {
+    let mask = if state.axis_mask.active {
+        &state.axis_mask
+    } else if state.data_mask.active {
+        &state.data_mask
+    } else {
         return;
-    }
+    };
 
-    let has_axis = state.mask.axis_result.is_some();
-    let has_data = state.mask.data_result.is_some();
+    let has_axis = mask.axis_result.is_some();
+    let has_data = mask.data_result.is_some();
 
     if !has_axis && !has_data {
         return;
@@ -31,15 +35,15 @@ pub fn draw_results_panel(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec
     window.show(ui.ctx(), |ui| {
         ui.set_min_width(150.0);
 
-        match state.mask.mask_mode {
-            MaskMode::AxisCalib => draw_axis_section(state, ui, actions),
-            MaskMode::DataRecog => draw_data_section(state, ui, actions),
+        match mask.mask_mode {
+            MaskMode::AxisCalib => draw_axis_section(mask, ui, actions),
+            MaskMode::DataRecog => draw_data_section(mask, ui, actions),
         }
     });
 }
 
-fn draw_axis_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
-    if let Some(ref axis_result) = state.mask.axis_result {
+fn draw_axis_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+    if let Some(ref axis_result) = mask.axis_result {
         let has_x = axis_result.x_axis.is_some();
         let has_y = axis_result.y_axis.is_some();
 
@@ -60,7 +64,7 @@ fn draw_axis_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
             let x_resp = egui::Frame::NONE
                 .inner_margin(4.0)
                 .corner_radius(3.0)
-                .fill(if state.mask.highlight_axis == Some(AxisHighlight::X) {
+                .fill(if mask.highlight_axis == Some(AxisHighlight::X) {
                     Color32::from_rgba_unmultiplied(66, 133, 244, 40)
                 } else {
                     Color32::TRANSPARENT
@@ -79,10 +83,10 @@ fn draw_axis_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                 });
 
             if x_resp.response.hovered() {
-                if state.mask.highlight_axis != Some(AxisHighlight::X) {
+                if mask.highlight_axis != Some(AxisHighlight::X) {
                     actions.push(Action::MaskSetAxisHighlight(Some(AxisHighlight::X)));
                 }
-            } else if state.mask.highlight_axis == Some(AxisHighlight::X) {
+            } else if mask.highlight_axis == Some(AxisHighlight::X) {
                 actions.push(Action::MaskSetAxisHighlight(None));
             }
         }
@@ -92,7 +96,7 @@ fn draw_axis_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
             let y_resp = egui::Frame::NONE
                 .inner_margin(4.0)
                 .corner_radius(3.0)
-                .fill(if state.mask.highlight_axis == Some(AxisHighlight::Y) {
+                .fill(if mask.highlight_axis == Some(AxisHighlight::Y) {
                     Color32::from_rgba_unmultiplied(52, 168, 83, 40)
                 } else {
                     Color32::TRANSPARENT
@@ -111,10 +115,10 @@ fn draw_axis_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                 });
 
             if y_resp.response.hovered() {
-                if state.mask.highlight_axis != Some(AxisHighlight::Y) {
+                if mask.highlight_axis != Some(AxisHighlight::Y) {
                     actions.push(Action::MaskSetAxisHighlight(Some(AxisHighlight::Y)));
                 }
-            } else if state.mask.highlight_axis == Some(AxisHighlight::Y) {
+            } else if mask.highlight_axis == Some(AxisHighlight::Y) {
                 actions.push(Action::MaskSetAxisHighlight(None));
             }
         }
@@ -137,7 +141,7 @@ fn draw_axis_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
     }
 }
 
-fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+fn draw_data_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
     // Tolerance slider
     ui.horizontal(|ui| {
         ui.label(
@@ -145,14 +149,14 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                 .small()
                 .color(Color32::LIGHT_GRAY),
         );
-        let mut tol = state.mask.color_tolerance;
+        let mut tol = mask.color_tolerance;
         let slider = egui::Slider::new(&mut tol, 10.0..=120.0)
             .step_by(1.0)
             .show_value(false);
         if ui.add_sized([50.0, 18.0], slider).changed() {
             actions.push(Action::MaskSetColorTolerance(tol));
         }
-        let mut tol_drag = state.mask.color_tolerance;
+        let mut tol_drag = mask.color_tolerance;
         if ui
             .add(
                 egui::DragValue::new(&mut tol_drag)
@@ -167,7 +171,7 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
 
     ui.add_space(4.0);
 
-    if let Some(ref data_result) = state.mask.data_result {
+    if let Some(ref data_result) = mask.data_result {
         if data_result.groups.is_empty() {
             ui.colored_label(Color32::GRAY, "No data colors detected.");
             return;
@@ -188,7 +192,7 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
             .sum();
 
         for (idx, group) in data_result.groups.iter().enumerate() {
-            let is_highlighted = state.mask.highlight_data_idx == Some(idx);
+            let is_highlighted = mask.highlight_data_idx == Some(idx);
 
             let group_resp = egui::Frame::NONE
                 .inner_margin(4.0)
@@ -293,10 +297,10 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                 });
 
             if group_resp.response.hovered() {
-                if state.mask.highlight_data_idx != Some(idx) {
+                if mask.highlight_data_idx != Some(idx) {
                     actions.push(Action::MaskSetDataHighlight(Some(idx)));
                 }
-            } else if state.mask.highlight_data_idx == Some(idx) {
+            } else if mask.highlight_data_idx == Some(idx) {
                 actions.push(Action::MaskSetDataHighlight(None));
             }
         }

@@ -296,25 +296,35 @@ pub fn handle(state: &mut AppState, action: Action) {
                     data_pts: state.data_pts.clone(),
                     groups: state.groups.clone(),
                     active_group_idx: state.active_group_idx,
-                    mask_buffer: if state.mask.active {
-                        Some(state.mask.buffer.clone())
-                    } else {
-                        None
-                    },
-                };
-                state.redo_stack.push(redo_snap);
+            axis_mask_buffer: if state.axis_mask.active {
+                Some(state.axis_mask.buffer.clone())
+            } else {
+                None
+            },
+            data_mask_buffer: if state.data_mask.active {
+                Some(state.data_mask.buffer.clone())
+            } else {
+                None
+            },
+        };
+        state.redo_stack.push(redo_snap);
 
-                state.calib_pts = snapshot.calib_pts;
-                state.data_pts = snapshot.data_pts;
-                state.groups = snapshot.groups;
-                state.active_group_idx = snapshot.active_group_idx;
-                if let Some(buf) = snapshot.mask_buffer {
-                    state.mask.buffer = buf;
-                    state.mask.axis_result = None;
-                    state.mask.data_result = None;
-                }
+        state.calib_pts = snapshot.calib_pts;
+        state.data_pts = snapshot.data_pts;
+        state.groups = snapshot.groups;
+        state.active_group_idx = snapshot.active_group_idx;
+        if let Some(buf) = snapshot.axis_mask_buffer {
+            state.axis_mask.buffer = buf;
+            state.axis_mask.axis_result = None;
+            state.axis_mask.data_result = None;
+        }
+        if let Some(buf) = snapshot.data_mask_buffer {
+            state.data_mask.buffer = buf;
+            state.data_mask.axis_result = None;
+            state.data_mask.data_result = None;
+        }
 
-                state.selected_data_indices.clear();
+        state.selected_data_indices.clear();
                 crate::core::recalculate_data(
                     &state.calib_pts,
                     &mut state.data_pts,
@@ -334,25 +344,35 @@ pub fn handle(state: &mut AppState, action: Action) {
                     data_pts: state.data_pts.clone(),
                     groups: state.groups.clone(),
                     active_group_idx: state.active_group_idx,
-                    mask_buffer: if state.mask.active {
-                        Some(state.mask.buffer.clone())
-                    } else {
-                        None
-                    },
-                };
-                state.undo_stack.push(undo_snap);
+            axis_mask_buffer: if state.axis_mask.active {
+                Some(state.axis_mask.buffer.clone())
+            } else {
+                None
+            },
+            data_mask_buffer: if state.data_mask.active {
+                Some(state.data_mask.buffer.clone())
+            } else {
+                None
+            },
+        };
+        state.undo_stack.push(undo_snap);
 
-                state.calib_pts = snapshot.calib_pts;
-                state.data_pts = snapshot.data_pts;
-                state.groups = snapshot.groups;
-                state.active_group_idx = snapshot.active_group_idx;
-                if let Some(buf) = snapshot.mask_buffer {
-                    state.mask.buffer = buf;
-                    state.mask.axis_result = None;
-                    state.mask.data_result = None;
-                }
+        state.calib_pts = snapshot.calib_pts;
+        state.data_pts = snapshot.data_pts;
+        state.groups = snapshot.groups;
+        state.active_group_idx = snapshot.active_group_idx;
+        if let Some(buf) = snapshot.axis_mask_buffer {
+            state.axis_mask.buffer = buf;
+            state.axis_mask.axis_result = None;
+            state.axis_mask.data_result = None;
+        }
+        if let Some(buf) = snapshot.data_mask_buffer {
+            state.data_mask.buffer = buf;
+            state.data_mask.axis_result = None;
+            state.data_mask.data_result = None;
+        }
 
-                state.selected_data_indices.clear();
+        state.selected_data_indices.clear();
                 crate::core::recalculate_data(
                     &state.calib_pts,
                     &mut state.data_pts,
@@ -457,10 +477,15 @@ pub fn handle(state: &mut AppState, action: Action) {
             state.active_group_idx = new_idx;
         }
         Action::SetMode(mode) => {
-            if state.mode == AppMode::Mask && mode != AppMode::Mask {
-                state.mask.active = false;
-            } else if mode == AppMode::Mask {
-                state.mask.active = true;
+            if state.mode == AppMode::AxisMask && mode != AppMode::AxisMask {
+                state.axis_mask.active = false;
+            } else if mode == AppMode::AxisMask {
+                state.axis_mask.active = true;
+            }
+            if state.mode == AppMode::DataMask && mode != AppMode::DataMask {
+                state.data_mask.active = false;
+            } else if mode == AppMode::DataMask {
+                state.data_mask.active = true;
             }
             state.mode = mode;
         }
@@ -479,15 +504,14 @@ pub fn handle(state: &mut AppState, action: Action) {
             });
 
             let mut new_state = AppState::default();
-            // Detect background color from decoded RGBA
             if let Some(ref rgba) = decoded_rgba {
-                new_state.mask.bg_color = Some(
-                    crate::ui::mask::analysis::detect_background_color(
-                        rgba,
-                        size.x as u32,
-                        size.y as u32,
-                    ),
+                let bg_col = crate::ui::mask::analysis::detect_background_color(
+                    rgba,
+                    size.x as u32,
+                    size.y as u32,
                 );
+                new_state.axis_mask.bg_color = Some(bg_col);
+                new_state.data_mask.bg_color = Some(bg_col);
             }
             new_state.raw_image_bytes = bytes;
             new_state.decoded_rgba = decoded_rgba;
@@ -501,10 +525,9 @@ pub fn handle(state: &mut AppState, action: Action) {
             let mut new_state = AppState::default();
             // Store decoded RGBA directly from clipboard data
             new_state.decoded_rgba = Some(bytes.clone());
-            // Detect background color
-            new_state.mask.bg_color = Some(
-                crate::ui::mask::analysis::detect_background_color(&bytes, w, h),
-            );
+            let bg_col = crate::ui::mask::analysis::detect_background_color(&bytes, w, h);
+            new_state.axis_mask.bg_color = Some(bg_col);
+            new_state.data_mask.bg_color = Some(bg_col);
             new_state.clipboard_rgba = Some((bytes, w, h));
             new_state.image_path = Some(std::path::PathBuf::from("Clipboard"));
             new_state.texture = Some(tex);
@@ -551,132 +574,181 @@ pub fn handle(state: &mut AppState, action: Action) {
 
         // ── Mask actions ──────────────────────────────────────────────
         Action::MaskToggle => {
-            let was_active = state.mask.active;
-            if was_active && state.mask.mask_mode == crate::state::MaskMode::DataRecog {
-                state.mask.active = false;
-                if state.mode == AppMode::Mask {
+            let was_active = state.data_mask.active;
+            if was_active {
+                state.data_mask.active = false;
+                if state.mode == AppMode::DataMask {
                     state.mode = AppMode::Select;
                 }
             } else {
-                state.mask.active = true;
-                state.mask.mask_mode = crate::state::MaskMode::DataRecog;
-                state.mode = AppMode::Mask;
+                state.data_mask.active = true;
+                state.data_mask.mask_mode = crate::state::MaskMode::DataRecog;
+                state.mode = AppMode::DataMask;
                 if state.texture.is_some() {
                     state
-                        .mask
+                        .data_mask
                         .ensure_buffer(state.img_size.x as u32, state.img_size.y as u32);
                 }
+                
+                // Keep AxisMask disabled when enabling DataMask
+                state.axis_mask.active = false;
             }
         }
         Action::MaskToggleForAxis => {
-            let was_active = state.mask.active;
-            if was_active && state.mask.mask_mode == crate::state::MaskMode::AxisCalib {
-                state.mask.active = false;
-                if state.mode == AppMode::Mask {
+            let was_active = state.axis_mask.active;
+            if was_active {
+                state.axis_mask.active = false;
+                if state.mode == AppMode::AxisMask {
                     state.mode = AppMode::Select;
                 }
             } else {
-                state.mask.active = true;
-                state.mask.mask_mode = crate::state::MaskMode::AxisCalib;
-                state.mode = AppMode::Mask;
+                state.axis_mask.active = true;
+                state.axis_mask.mask_mode = crate::state::MaskMode::AxisCalib;
+                state.mode = AppMode::AxisMask;
                 if state.texture.is_some() {
                     state
-                        .mask
+                        .axis_mask
                         .ensure_buffer(state.img_size.x as u32, state.img_size.y as u32);
                 }
+                
+                // Keep DataMask disabled when enabling AxisMask
+                state.data_mask.active = false;
             }
         }
         Action::MaskFinishCalib => {
-            // Finish: deactivate mask, clear mask buffer, go back to Select
-            state.mask.active = false;
-            state.mask.buffer.fill(false);
-            state.mask.axis_result = None;
-            state.mask.data_result = None;
-            if state.mode == AppMode::Mask {
+            if state.mode == AppMode::AxisMask {
+                state.axis_mask.active = false;
+                state.mode = AppMode::Select;
+            } else if state.mode == AppMode::DataMask {
+                state.data_mask.active = false;
                 state.mode = AppMode::Select;
             }
         }
         Action::MaskSetTool(tool) => {
-            state.mask.tool = tool;
+            if state.mode == AppMode::AxisMask {
+                state.axis_mask.tool = tool;
+            } else {
+                state.data_mask.tool = tool;
+            }
         }
         Action::MaskSetBrushSize(size) => {
-            state.mask.brush_size = size;
+            if state.mode == AppMode::AxisMask {
+                state.axis_mask.brush_size = size;
+            } else {
+                state.data_mask.brush_size = size;
+            }
         }
         Action::MaskToggleVisibility => {
-            state.mask.visible = !state.mask.visible;
+            if state.mode == AppMode::AxisMask {
+                state.axis_mask.visible = !state.axis_mask.visible;
+            } else {
+                state.data_mask.visible = !state.data_mask.visible;
+            }
         }
         Action::MaskClear => {
-            if state.mask.has_any_mask() {
+            let has_mask = if state.mode == AppMode::AxisMask {
+                state.axis_mask.has_any_mask()
+            } else {
+                state.data_mask.has_any_mask()
+            };
+            if has_mask {
                 state.save_snapshot();
             }
-            state.mask.buffer.fill(false);
-            state.mask.axis_result = None;
-            state.mask.data_result = None;
+            let mask = if state.mode == AppMode::AxisMask {
+                &mut state.axis_mask
+            } else {
+                &mut state.data_mask
+            };
+            mask.buffer.fill(false);
+            mask.axis_result = None;
+            mask.data_result = None;
         }
         Action::MaskPaintStart => {
             state.save_snapshot();
-            state.mask.painting = true;
-            state.mask.last_paint_pos = None;
+            let mask = if state.mode == AppMode::AxisMask {
+                &mut state.axis_mask
+            } else {
+                &mut state.data_mask
+            };
+            mask.painting = true;
+            mask.last_paint_pos = None;
         }
         Action::MaskPaintStroke { x, y } => {
-            if state.mask.width == 0 || state.mask.height == 0 {
+            let mask = if state.mode == AppMode::AxisMask {
+                &mut state.axis_mask
+            } else {
+                &mut state.data_mask
+            };
+            if mask.width == 0 || mask.height == 0 {
                 return;
             }
-            let value = state.mask.tool == crate::state::MaskTool::Pen;
-            let radius = state.mask.brush_size;
+            let value = mask.tool == crate::state::MaskTool::Pen;
+            let radius = mask.brush_size;
 
-            if let Some((lx, ly)) = state.mask.last_paint_pos {
+            if let Some((lx, ly)) = mask.last_paint_pos {
                 // Interpolate from last position to current
-                state.mask.paint_line(lx, ly, x, y, radius, value);
+                mask.paint_line(lx, ly, x, y, radius, value);
             } else {
                 // First point of stroke
-                state.mask.paint_circle(x, y, radius, value);
+                mask.paint_circle(x, y, radius, value);
             }
-            state.mask.last_paint_pos = Some((x, y));
+            mask.last_paint_pos = Some((x, y));
         }
         Action::MaskPaintEnd => {
-            state.mask.painting = false;
-            state.mask.last_paint_pos = None;
-            if state.mask.has_any_mask() {
-                if let Some(ref rgba) = state.decoded_rgba {
-                    let w = state.mask.width;
-                    let h = state.mask.height;
-                    let bg = state.mask.bg_color.unwrap_or([255, 255, 255]);
-                    match state.mask.mask_mode {
+            let AppState { mode, decoded_rgba, axis_mask, data_mask, .. } = state;
+            let mask = if *mode == AppMode::AxisMask {
+                axis_mask
+            } else {
+                data_mask
+            };
+            mask.painting = false;
+            mask.last_paint_pos = None;
+            if mask.has_any_mask() {
+                if let Some(ref rgba) = decoded_rgba {
+                    let w = mask.width;
+                    let h = mask.height;
+                    let bg = mask.bg_color.unwrap_or([255, 255, 255]);
+                    match mask.mask_mode {
                         crate::state::MaskMode::AxisCalib => {
-                            state.mask.axis_result = Some(
+                            mask.axis_result = Some(
                                 crate::ui::mask::analysis::analyze_mask_for_axes(
-                                    rgba, &state.mask.buffer, w, h, bg,
+                                    rgba, &mask.buffer, w, h, bg,
                                 ),
                             );
-                            state.mask.data_result = None;
+                            mask.data_result = None;
                         }
                         crate::state::MaskMode::DataRecog => {
-                            state.mask.data_result = Some(
+                            mask.data_result = Some(
                                 crate::ui::mask::analysis::analyze_mask_for_data(
-                                    rgba, &state.mask.buffer, w, h, bg,
-                                    state.mask.color_tolerance,
+                                    rgba, &mask.buffer, w, h, bg,
+                                    mask.color_tolerance,
                                 ),
                             );
-                            state.mask.axis_result = None;
+                            mask.axis_result = None;
                         }
                     }
                 }
             } else {
-                state.mask.axis_result = None;
-                state.mask.data_result = None;
+                mask.axis_result = None;
+                mask.data_result = None;
             }
         }
         Action::MaskSetColorTolerance(tol) => {
-            state.mask.color_tolerance = tol;
-            if state.mask.has_any_mask() {
-                if let Some(ref rgba) = state.decoded_rgba {
-                    let w = state.mask.width;
-                    let h = state.mask.height;
-                    let bg = state.mask.bg_color.unwrap_or([255, 255, 255]);
-                    state.mask.data_result = Some(
+            let AppState { mode, decoded_rgba, axis_mask, data_mask, .. } = state;
+            let mask = if *mode == AppMode::AxisMask {
+                axis_mask
+            } else {
+                data_mask
+            };
+            mask.color_tolerance = tol;
+            if mask.has_any_mask() {
+                if let Some(ref rgba) = decoded_rgba {
+                    let w = mask.width;
+                    let h = mask.height;
+                    let bg = mask.bg_color.unwrap_or([255, 255, 255]);
+                    mask.data_result = Some(
                         crate::ui::mask::analysis::analyze_mask_for_data(
-                            rgba, &state.mask.buffer, w, h, bg, tol,
+                            rgba, &mask.buffer, w, h, bg, tol,
                         ),
                     );
                 }
@@ -685,11 +757,11 @@ pub fn handle(state: &mut AppState, action: Action) {
 
         // ── Mask Axis Detection ──
         Action::MaskSetAxisHighlight(hl) => {
-            state.mask.highlight_axis = hl;
+            state.axis_mask.highlight_axis = hl;
         }
         Action::MaskApplyAxis(axis) => {
             // Clone the endpoints out before mutating state
-            let endpoints = state.mask.axis_result.as_ref().and_then(|result| {
+            let endpoints = state.axis_mask.axis_result.as_ref().and_then(|result| {
                 match axis {
                     crate::state::AxisHighlight::X => result.x_axis,
                     crate::state::AxisHighlight::Y => result.y_axis,
@@ -734,10 +806,10 @@ pub fn handle(state: &mut AppState, action: Action) {
 
         // ── Mask Data Recognition ──
         Action::MaskSetDataHighlight(idx) => {
-            state.mask.highlight_data_idx = idx;
+            state.data_mask.highlight_data_idx = idx;
         }
         Action::MaskSetDataMode(idx, mode) => {
-            if let Some(ref mut result) = state.mask.data_result {
+            if let Some(ref mut result) = state.data_mask.data_result {
                 if let Some(group) = result.groups.get_mut(idx) {
                     group.curve_mode = mode;
                     // Resample points based on new mode
@@ -747,7 +819,7 @@ pub fn handle(state: &mut AppState, action: Action) {
                                 crate::ui::mask::analysis::sample_points_from_cluster(
                                     &group.pixel_coords,
                                     group.point_count,
-                                    state.mask.width,
+                                    state.data_mask.width,
                                 );
                         }
                         crate::state::DataCurveMode::Scatter => {
@@ -756,7 +828,7 @@ pub fn handle(state: &mut AppState, action: Action) {
                                 crate::ui::mask::analysis::sample_points_from_cluster(
                                     &group.pixel_coords,
                                     group.pixel_coords.len(),
-                                    state.mask.width,
+                                    state.data_mask.width,
                                 );
                         }
                     }
@@ -764,7 +836,7 @@ pub fn handle(state: &mut AppState, action: Action) {
             }
         }
         Action::MaskSetDataPoints(idx, count) => {
-            if let Some(ref mut result) = state.mask.data_result {
+            if let Some(ref mut result) = state.data_mask.data_result {
                 if let Some(group) = result.groups.get_mut(idx) {
                     group.point_count = count;
                     // Resample with new count
@@ -772,14 +844,14 @@ pub fn handle(state: &mut AppState, action: Action) {
                         crate::ui::mask::analysis::sample_points_from_cluster(
                             &group.pixel_coords,
                             count,
-                            state.mask.width,
+                            state.data_mask.width,
                         );
                 }
             }
         }
         Action::MaskAddData(idx) => {
             // Clone both the color and sampled points before mutating state
-            let group_data = state.mask.data_result.as_ref().and_then(|result| {
+            let group_data = state.data_mask.data_result.as_ref().and_then(|result| {
                 result.groups.get(idx).map(|group| {
                     (group.color, group.sampled_points.clone())
                 })

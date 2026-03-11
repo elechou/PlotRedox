@@ -224,8 +224,10 @@ pub struct HistorySnapshot {
     pub data_pts: Vec<DataPoint>,
     pub groups: Vec<PointGroup>,
     pub active_group_idx: usize,
-    /// Mask buffer snapshot for unified undo/redo
-    pub mask_buffer: Option<Vec<bool>>,
+    /// Axis mask buffer snapshot for unified undo/redo
+    pub axis_mask_buffer: Option<Vec<bool>>,
+    /// Data mask buffer snapshot for unified undo/redo
+    pub data_mask_buffer: Option<Vec<bool>>,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -235,7 +237,8 @@ pub enum AppMode {
     AddData,
     Delete,
     Pan,
-    Mask,
+    AxisMask,
+    DataMask,
 }
 
 /// Actions that are deferred until unsaved-changes confirmation is resolved.
@@ -327,7 +330,8 @@ pub struct AppState {
     pub ide: IdeState,
 
     // Mask State
-    pub mask: MaskState,
+    pub axis_mask: MaskState,
+    pub data_mask: MaskState,
 }
 
 #[derive(Clone)]
@@ -398,7 +402,14 @@ impl Default for AppState {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             ide: IdeState::default(),
-            mask: MaskState::default(),
+            axis_mask: MaskState {
+                mask_mode: MaskMode::AxisCalib,
+                ..Default::default()
+            },
+            data_mask: MaskState {
+                mask_mode: MaskMode::DataRecog,
+                ..Default::default()
+            },
         }
     }
 }
@@ -466,8 +477,13 @@ impl AppState {
             data_pts: self.data_pts.clone(),
             groups: self.groups.clone(),
             active_group_idx: self.active_group_idx,
-            mask_buffer: if self.mask.active {
-                Some(self.mask.buffer.clone())
+            axis_mask_buffer: if self.axis_mask.active {
+                Some(self.axis_mask.buffer.clone())
+            } else {
+                None
+            },
+            data_mask_buffer: if self.data_mask.active {
+                Some(self.data_mask.buffer.clone())
             } else {
                 None
             },

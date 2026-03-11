@@ -171,7 +171,7 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
                 AppMode::AddData | AppMode::AddCalib => {
                     ctx.set_cursor_icon(egui::CursorIcon::Crosshair)
                 }
-                AppMode::Mask => {
+                AppMode::AxisMask | AppMode::DataMask => {
                     // Hide default cursor — we draw a custom brush circle
                     ctx.set_cursor_icon(egui::CursorIcon::None);
                 }

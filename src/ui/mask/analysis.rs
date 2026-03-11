@@ -1,5 +1,5 @@
 use crate::state::{AxisDetectionResult, DataCurveMode, DataDetectionResult, DetectedColorGroup};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 // ────────────────────────────────────────────────────────────────
 //  Background Color Detection
@@ -292,7 +292,6 @@ pub fn analyze_mask_for_axes(
         if island.is_empty() {
             return (Vec::new(), Vec::new());
         }
-
 
         // 2. 1D Silhouette Profiling
         // Group by position along the axis

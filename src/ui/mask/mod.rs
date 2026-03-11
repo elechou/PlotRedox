@@ -12,9 +12,13 @@ use crate::state::{AppState, MaskTool};
 // ────────────────────────────────────────────────────────────────
 
 pub fn draw_mask_toolbar(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
-    if !state.mask.active {
+    let mask = if state.axis_mask.active {
+        &state.axis_mask
+    } else if state.data_mask.active {
+        &state.data_mask
+    } else {
         return;
-    }
+    };
 
     let window = egui::Window::new("Mask Sub-Toolbar")
         .collapsible(false)
@@ -25,14 +29,14 @@ pub fn draw_mask_toolbar(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<
     window.show(ui.ctx(), |ui| {
         ui.horizontal(|ui| {
             if ui
-                .selectable_label(state.mask.tool == MaskTool::Pen, "\u{270F} Pen")
+                .selectable_label(mask.tool == MaskTool::Pen, "\u{270F} Pen")
                 .on_hover_text("Paint mask")
                 .clicked()
             {
                 actions.push(Action::MaskSetTool(MaskTool::Pen));
             }
             if ui
-                .selectable_label(state.mask.tool == MaskTool::Eraser, "\u{1F4D7} Eraser")
+                .selectable_label(mask.tool == MaskTool::Eraser, "\u{1F4D7} Eraser")
                 .on_hover_text("Erase mask")
                 .clicked()
             {
@@ -40,27 +44,27 @@ pub fn draw_mask_toolbar(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<
             }
 
             // Compact brush size slider (no label, narrow)
-            let mut size = state.mask.brush_size;
+            let mut size = mask.brush_size;
             let slider = egui::Slider::new(&mut size, 2.0..=80.0)
                 .step_by(1.0)
                 .show_value(false);
             if ui
                 .add_sized([40.0, 18.0], slider)
-                .on_hover_text(format!("Brush size: {:.0} px", state.mask.brush_size))
+                .on_hover_text(format!("Brush size: {:.0} px", mask.brush_size))
                 .changed()
             {
                 actions.push(Action::MaskSetBrushSize(size));
             }
 
             // Icon-only visibility toggle
-            let vis_icon = if state.mask.visible {
+            let vis_icon = if mask.visible {
                 "\u{1F441}"
             } else {
                 "\u{1F6AB}"
             };
             if ui
-                .selectable_label(!state.mask.visible, vis_icon)
-                .on_hover_text(if state.mask.visible {
+                .selectable_label(!mask.visible, vis_icon)
+                .on_hover_text(if mask.visible {
                     "Hide mask overlay"
                 } else {
                     "Show mask overlay"
@@ -88,18 +92,22 @@ pub fn draw_mask_overlay(
     to_screen: &dyn Fn(f32, f32) -> Pos2,
     _zoom: f32,
 ) {
-    if !state.mask.active && !state.mask.visible {
+    let mask = if state.axis_mask.active {
+        &state.axis_mask
+    } else if state.data_mask.active {
+        &state.data_mask
+    } else {
+        return;
+    };
+    if !mask.visible {
         return;
     }
-    if !state.mask.visible {
-        return;
-    }
-    if state.mask.buffer.is_empty() {
+    if mask.buffer.is_empty() {
         return;
     }
 
-    let w = state.mask.width as usize;
-    let h = state.mask.height as usize;
+    let w = mask.width as usize;
+    let h = mask.height as usize;
 
     // Semi-transparent red-orange overlay color (multiply-like effect)
     let overlay_color = Color32::from_rgba_unmultiplied(220, 80, 40, 90);
@@ -110,10 +118,10 @@ pub fn draw_mask_overlay(
         let row_start = y * w;
         let mut x = 0;
         while x < w {
-            if state.mask.buffer[row_start + x] {
+            if mask.buffer[row_start + x] {
                 // Find the end of this run
                 let run_start = x;
-                while x < w && state.mask.buffer[row_start + x] {
+                while x < w && mask.buffer[row_start + x] {
                     x += 1;
                 }
                 let run_end = x;
@@ -141,16 +149,23 @@ pub fn draw_mask_highlights(
     _zoom: f32,
 ) {
     let rgba = state.decoded_rgba.as_deref();
+    let mask = if state.axis_mask.active {
+        &state.axis_mask
+    } else if state.data_mask.active {
+        &state.data_mask
+    } else {
+        return;
+    };
 
     // Axis highlight
-    if let Some(ref axis_hl) = state.mask.highlight_axis {
-        if let Some(ref result) = state.mask.axis_result {
+    if let Some(ref axis_hl) = mask.highlight_axis {
+        if let Some(ref result) = mask.axis_result {
             let pixels = match axis_hl {
                 crate::state::AxisHighlight::X => &result.x_axis_pixels,
                 crate::state::AxisHighlight::Y => &result.y_axis_pixels,
             };
 
-            draw_pixel_set_real_color(painter, pixels, to_screen, rgba, state.mask.width);
+            draw_pixel_set_real_color(painter, pixels, to_screen, rgba, mask.width);
 
             // Draw ❌ crosses at tick positions
             let ticks = match axis_hl {
@@ -210,15 +225,15 @@ pub fn draw_mask_highlights(
     }
 
     // Data highlight
-    if let Some(idx) = state.mask.highlight_data_idx {
-        if let Some(ref result) = state.mask.data_result {
+    if let Some(idx) = mask.highlight_data_idx {
+        if let Some(ref result) = mask.data_result {
             if let Some(group) = result.groups.get(idx) {
                 draw_pixel_set_real_color(
                     painter,
                     &group.pixel_coords,
                     to_screen,
                     rgba,
-                    state.mask.width,
+                    mask.width,
                 );
 
                 // Draw sampled points
@@ -305,14 +320,18 @@ pub fn draw_mask_cursor(
     response: &egui::Response,
     zoom: f32,
 ) {
-    if !state.mask.active {
+    let mask = if state.axis_mask.active {
+        &state.axis_mask
+    } else if state.data_mask.active {
+        &state.data_mask
+    } else {
         return;
-    }
+    };
 
     if let Some(mouse_pos) = ctx.input(|i| i.pointer.hover_pos()) {
         if response.rect.contains(mouse_pos) {
-            let screen_radius = state.mask.brush_size * zoom;
-            let cursor_color = match state.mask.tool {
+            let screen_radius = mask.brush_size * zoom;
+            let cursor_color = match mask.tool {
                 MaskTool::Pen => Color32::from_rgba_unmultiplied(220, 80, 40, 160),
                 MaskTool::Eraser => Color32::from_rgba_unmultiplied(100, 180, 255, 160),
             };

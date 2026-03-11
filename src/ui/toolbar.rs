@@ -25,13 +25,6 @@ pub fn draw_toolbar(
                 actions.push(Action::ClearSelection);
             }
             if ui
-                .selectable_label(state.mask.active, "\u{1F17E} Mask")
-                .on_hover_text("Paint mask for axis detection & data recognition")
-                .clicked()
-            {
-                actions.push(Action::MaskToggle);
-            }
-            if ui
                 .selectable_label(state.mode == AppMode::AddData, "\u{2795} Add Data")
                 .on_hover_text("Pick new points")
                 .clicked()

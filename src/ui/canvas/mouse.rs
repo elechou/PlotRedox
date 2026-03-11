@@ -43,7 +43,7 @@ pub fn handle_mouse(
         }
 
         // In mask mode, right-click/middle-click still pans
-        if state.mode == AppMode::Mask {
+        if matches!(state.mode, AppMode::AxisMask | AppMode::DataMask) {
             // Pan via right/middle is already handled above
         }
 
@@ -60,7 +60,7 @@ pub fn handle_mouse(
     }
 
     // --- Mask mode: painting ---
-    if state.mode == AppMode::Mask {
+    if matches!(state.mode, AppMode::AxisMask | AppMode::DataMask) {
         handle_mask_mouse(state, ctx, response, actions);
         return; // Don't process normal click/drag logic in mask mode
     }

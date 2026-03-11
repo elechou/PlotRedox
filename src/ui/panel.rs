@@ -27,8 +27,8 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
 
                 ui.horizontal(|ui| {
                     // Magic axis detection button
-                    let magic_active = state.mask.active
-                        && state.mask.mask_mode == crate::state::MaskMode::AxisCalib;
+                    let magic_active = state.axis_mask.active
+                        && state.axis_mask.mask_mode == crate::state::MaskMode::AxisCalib;
                     let mut magic_btn = egui::Button::new("✨ Magic");
                     if magic_active {
                         magic_btn = magic_btn.fill(Color32::from_rgb(180, 120, 50));
@@ -156,6 +156,23 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 }
 
                 ui.label(format!("Total Datapoints: {}", state.data_pts.len()));
+
+                ui.add_space(5.0);
+                
+                let mask_active = state.data_mask.active 
+                    && state.data_mask.mask_mode == crate::state::MaskMode::DataRecog;
+                let mut mask_btn = egui::Button::new("\u{1F17E} Auto-extract Data (Mask)");
+                if mask_active {
+                    mask_btn = mask_btn.fill(Color32::from_rgb(50, 120, 180));
+                }
+                if ui.add_sized([ui.available_width(), 24.0], mask_btn)
+                    .on_hover_text("Auto-extract data points using color recognition via a painted mask")
+                    .clicked() 
+                {
+                    actions.push(Action::MaskToggle);
+                }
+                
+                ui.add_space(10.0);
 
                 let _palette = [
                     Color32::from_rgb(0xe4, 0x1a, 0x1c), // Red
