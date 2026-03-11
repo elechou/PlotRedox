@@ -317,11 +317,13 @@ pub fn handle(state: &mut AppState, action: Action) {
             state.axis_mask.buffer = buf;
             state.axis_mask.axis_result = None;
             state.axis_mask.data_result = None;
+            state.axis_mask.texture_dirty = true;
         }
         if let Some(buf) = snapshot.data_mask_buffer {
             state.data_mask.buffer = buf;
             state.data_mask.axis_result = None;
             state.data_mask.data_result = None;
+            state.data_mask.texture_dirty = true;
         }
 
         state.selected_data_indices.clear();
@@ -365,11 +367,13 @@ pub fn handle(state: &mut AppState, action: Action) {
             state.axis_mask.buffer = buf;
             state.axis_mask.axis_result = None;
             state.axis_mask.data_result = None;
+            state.axis_mask.texture_dirty = true;
         }
         if let Some(buf) = snapshot.data_mask_buffer {
             state.data_mask.buffer = buf;
             state.data_mask.axis_result = None;
             state.data_mask.data_result = None;
+            state.data_mask.texture_dirty = true;
         }
 
         state.selected_data_indices.clear();
@@ -662,6 +666,7 @@ pub fn handle(state: &mut AppState, action: Action) {
             mask.buffer.fill(false);
             mask.axis_result = None;
             mask.data_result = None;
+            mask.texture_dirty = true;
         }
         Action::MaskPaintStart => {
             state.save_snapshot();
@@ -672,6 +677,8 @@ pub fn handle(state: &mut AppState, action: Action) {
             };
             mask.painting = true;
             mask.last_paint_pos = None;
+            // Snapshot so we can diff new pixels during this stroke
+            mask.stroke_snapshot = mask.buffer.clone();
         }
         Action::MaskPaintStroke { x, y } => {
             let mask = if state.mode == AppMode::AxisMask {
@@ -703,6 +710,8 @@ pub fn handle(state: &mut AppState, action: Action) {
             };
             mask.painting = false;
             mask.last_paint_pos = None;
+            mask.texture_dirty = true;
+            mask.stroke_snapshot = Vec::new();
             if mask.has_any_mask() {
                 if let Some(ref rgba) = decoded_rgba {
                     let w = mask.width;

@@ -97,6 +97,15 @@ pub struct MaskState {
     pub highlight_axis: Option<AxisHighlight>,
     /// Which data color group to highlight on hover
     pub highlight_data_idx: Option<usize>,
+
+    /// Cached GPU texture for mask overlay (avoids moiré from per-pixel rects)
+    pub mask_texture: Option<eframe::egui::TextureHandle>,
+    /// Whether the texture needs rebuilding from the buffer
+    pub texture_dirty: bool,
+
+    /// Snapshot of the mask buffer at stroke start, used to detect which pixels
+    /// are new during the current stroke (so only new pixels need rect rendering).
+    pub stroke_snapshot: Vec<bool>,
 }
 
 impl Default for MaskState {
@@ -118,6 +127,9 @@ impl Default for MaskState {
             color_tolerance: 60.0,
             highlight_axis: None,
             highlight_data_idx: None,
+            mask_texture: None,
+            texture_dirty: false,
+            stroke_snapshot: Vec::new(),
         }
     }
 }
@@ -129,6 +141,8 @@ impl MaskState {
             self.width = w;
             self.height = h;
             self.buffer = vec![false; (w as usize) * (h as usize)];
+            self.texture_dirty = true;
+            self.mask_texture = None;
         }
     }
 
@@ -151,6 +165,9 @@ impl MaskState {
                 }
             }
         }
+        // NOTE: texture_dirty is NOT set here for performance.
+        // It is set when painting ends (MaskPaintEnd action) so the texture
+        // is rebuilt only once, not every frame during painting.
     }
 
     /// Paint a line from (x0, y0) to (x1, y1) with the given brush radius.
@@ -170,6 +187,42 @@ impl MaskState {
 
     pub fn has_any_mask(&self) -> bool {
         self.buffer.iter().any(|&b| b)
+    }
+
+    /// Rebuild the GPU texture from the bool buffer if dirty.
+    /// Call this once per frame before drawing.
+    pub fn rebuild_texture_if_dirty(&mut self, ctx: &eframe::egui::Context, name: &str) {
+        if !self.texture_dirty || self.buffer.is_empty() {
+            return;
+        }
+        self.texture_dirty = false;
+
+        let w = self.width as usize;
+        let h = self.height as usize;
+
+        // Build RGBA pixels: masked pixels get semi-transparent red-orange
+        let mut pixels = vec![0u8; w * h * 4];
+        for i in 0..self.buffer.len() {
+            if self.buffer[i] {
+                let off = i * 4;
+                pixels[off] = 220;
+                pixels[off + 1] = 80;
+                pixels[off + 2] = 40;
+                pixels[off + 3] = 90;
+            }
+            // else: fully transparent (already zeroed)
+        }
+
+        let color_image = eframe::egui::ColorImage::from_rgba_unmultiplied(
+            [w, h],
+            &pixels,
+        );
+        let handle = ctx.load_texture(
+            name,
+            color_image,
+            eframe::egui::TextureOptions::LINEAR,
+        );
+        self.mask_texture = Some(handle);
     }
 }
 

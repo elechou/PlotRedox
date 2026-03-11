@@ -98,38 +98,116 @@ pub fn draw_mask_overlay(
     } else {
         return;
     };
-    if !mask.visible {
-        return;
-    }
-    if mask.buffer.is_empty() {
+    if !mask.visible || mask.buffer.is_empty() {
         return;
     }
 
-    let w = mask.width as usize;
-    let h = mask.height as usize;
+    let is_erasing = mask.painting && mask.tool != crate::state::MaskTool::Pen;
 
-    // Semi-transparent red-orange overlay color (multiply-like effect)
-    let overlay_color = Color32::from_rgba_unmultiplied(220, 80, 40, 90);
+    // Draw cached texture (skip during eraser strokes — texture is stale)
+    if !is_erasing {
+        if let Some(tex) = &mask.mask_texture {
+            let p0 = to_screen(0.0, 0.0);
+            let p1 = to_screen(mask.width as f32, mask.height as f32);
+            painter.image(
+                tex.id(),
+                egui::Rect::from_min_max(p0, p1),
+                egui::Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                Color32::WHITE,
+            );
+        }
+    }
 
-    // Scan the mask and draw filled rectangles for contiguous runs of masked pixels.
-    // This is much more efficient than drawing one rect per pixel.
+    if mask.painting && !mask.stroke_snapshot.is_empty() {
+        if !is_erasing {
+            // Pen: incremental — only render NEW pixels added in this stroke
+            draw_mask_rects_diff(
+                &mask.buffer,
+                &mask.stroke_snapshot,
+                mask.width as usize,
+                mask.height as usize,
+                painter,
+                to_screen,
+            );
+        } else {
+            // Eraser: texture is stale, full rect render of current buffer
+            draw_mask_rects_full(
+                &mask.buffer,
+                mask.width as usize,
+                mask.height as usize,
+                painter,
+                to_screen,
+            );
+        }
+    } else if mask.mask_texture.is_none() {
+        // No texture yet — full rect fallback
+        draw_mask_rects_full(
+            &mask.buffer,
+            mask.width as usize,
+            mask.height as usize,
+            painter,
+            to_screen,
+        );
+    }
+}
+
+/// Draw rects for ALL masked pixels in the buffer.
+fn draw_mask_rects_full(
+    buffer: &[bool],
+    w: usize,
+    h: usize,
+    painter: &egui::Painter,
+    to_screen: &dyn Fn(f32, f32) -> Pos2,
+) {
+    let color = Color32::from_rgba_unmultiplied(220, 80, 40, 90);
     for y in 0..h {
-        let row_start = y * w;
+        let row = y * w;
         let mut x = 0;
         while x < w {
-            if mask.buffer[row_start + x] {
-                // Find the end of this run
+            if buffer[row + x] {
                 let run_start = x;
-                while x < w && mask.buffer[row_start + x] {
+                while x < w && buffer[row + x] {
                     x += 1;
                 }
-                let run_end = x;
-
-                // Draw a single rectangle for the entire run
                 let p0 = to_screen(run_start as f32, y as f32);
-                let p1 = to_screen(run_end as f32, (y + 1) as f32);
-                let rect = egui::Rect::from_min_max(p0, p1);
-                painter.rect_filled(rect, 0.0, overlay_color);
+                let p1 = to_screen(x as f32, (y + 1) as f32);
+                painter.rect_filled(egui::Rect::from_min_max(p0, p1), 0.0, color);
+            } else {
+                x += 1;
+            }
+        }
+    }
+}
+
+/// Draw rects only for pixels that are ON in `buffer` but OFF in `snapshot` (new this stroke).
+fn draw_mask_rects_diff(
+    buffer: &[bool],
+    snapshot: &[bool],
+    w: usize,
+    h: usize,
+    painter: &egui::Painter,
+    to_screen: &dyn Fn(f32, f32) -> Pos2,
+) {
+    let color = Color32::from_rgba_unmultiplied(220, 80, 40, 90);
+    for y in 0..h {
+        let row = y * w;
+        let mut x = 0;
+        while x < w {
+            let i = row + x;
+            if buffer[i] && !snapshot[i] {
+                let run_start = x;
+                x += 1;
+                while x < w {
+                    let j = row + x;
+                    if buffer[j] && !snapshot[j] {
+                        x += 1;
+                    } else {
+                        break;
+                    }
+                }
+                let p0 = to_screen(run_start as f32, y as f32);
+                let p1 = to_screen(x as f32, (y + 1) as f32);
+                painter.rect_filled(egui::Rect::from_min_max(p0, p1), 0.0, color);
             } else {
                 x += 1;
             }
@@ -251,7 +329,7 @@ pub fn draw_mask_highlights(
 }
 
 /// Draw highlighted pixels using their actual color from the image,
-/// with white boundary strokes for visibility.
+/// with outer glow for visibility.
 fn draw_pixel_set_real_color(
     painter: &egui::Painter,
     pixels: &[(u32, u32)],
@@ -264,8 +342,47 @@ fn draw_pixel_set_real_color(
     }
 
     let pixel_set: std::collections::HashSet<(u32, u32)> = pixels.iter().copied().collect();
+
+    // ── Outer glow via boundary edge strokes (wide → narrow, faint → bright) ──
+    // Each layer = (stroke width, alpha)
+    // let glow_layers: &[(f32, u8)] = &[(5.0, 100), (3.0, 100), (1.5, 100)];
+    let glow_layers: &[(f32, u8)] = &[(5.0, 225)];
+
     let w_us = img_width as usize;
 
+    // Collect boundary edges and draw glow layers (widest/faintest first)
+    for &(width, alpha) in glow_layers {
+        let glow = Color32::from_rgba_unmultiplied(255, 255, 255, alpha);
+        let stroke = Stroke::new(width, glow);
+        for &(px, py) in pixels {
+            // Top edge
+            if !pixel_set.contains(&(px, py.wrapping_sub(1))) {
+                let a = to_screen(px as f32, py as f32);
+                let b = to_screen((px + 1) as f32, py as f32);
+                painter.line_segment([a, b], stroke);
+            }
+            // Bottom edge
+            if !pixel_set.contains(&(px, py + 1)) {
+                let a = to_screen(px as f32, (py + 1) as f32);
+                let b = to_screen((px + 1) as f32, (py + 1) as f32);
+                painter.line_segment([a, b], stroke);
+            }
+            // Left edge
+            if !pixel_set.contains(&(px.wrapping_sub(1), py)) {
+                let a = to_screen(px as f32, py as f32);
+                let b = to_screen(px as f32, (py + 1) as f32);
+                painter.line_segment([a, b], stroke);
+            }
+            // Right edge
+            if !pixel_set.contains(&(px + 1, py)) {
+                let a = to_screen((px + 1) as f32, py as f32);
+                let b = to_screen((px + 1) as f32, (py + 1) as f32);
+                painter.line_segment([a, b], stroke);
+            }
+        }
+    }
+
+    // ── Fill pixels with their actual color ──
     for &(px, py) in pixels {
         let color = if let Some(rgba_data) = rgba {
             let off = ((py as usize) * w_us + (px as usize)) * 4;
@@ -280,31 +397,7 @@ fn draw_pixel_set_real_color(
 
         let p0 = to_screen(px as f32, py as f32);
         let p1 = to_screen((px + 1) as f32, (py + 1) as f32);
-        let rect = egui::Rect::from_min_max(p0, p1);
-        painter.rect_filled(rect, 0.0, color);
-
-        // White border on boundary edges
-        let is_boundary = |dx: i32, dy: i32| -> bool {
-            let nx = px as i32 + dx;
-            let ny = py as i32 + dy;
-            if nx < 0 || ny < 0 { return true; }
-            !pixel_set.contains(&(nx as u32, ny as u32))
-        };
-
-        let feather = Color32::from_rgba_unmultiplied(255, 255, 255, 180);
-
-        if is_boundary(0, -1) {
-            painter.line_segment([p0, Pos2::new(p1.x, p0.y)], Stroke::new(1.0, feather));
-        }
-        if is_boundary(0, 1) {
-            painter.line_segment([Pos2::new(p0.x, p1.y), p1], Stroke::new(1.0, feather));
-        }
-        if is_boundary(-1, 0) {
-            painter.line_segment([p0, Pos2::new(p0.x, p1.y)], Stroke::new(1.0, feather));
-        }
-        if is_boundary(1, 0) {
-            painter.line_segment([Pos2::new(p1.x, p0.y), p1], Stroke::new(1.0, feather));
-        }
+        painter.rect_filled(egui::Rect::from_min_max(p0, p1), 0.0, color);
     }
 }
 
