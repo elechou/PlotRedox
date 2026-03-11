@@ -115,7 +115,7 @@ impl Default for MaskState {
             bg_color: None,
             axis_result: None,
             data_result: None,
-            color_tolerance: 30.0,
+            color_tolerance: 60.0,
             highlight_axis: None,
             highlight_data_idx: None,
         }
@@ -447,10 +447,10 @@ impl AppState {
         self.calib_pts.clear();
 
         // Reset calibration axis values
-        self.x1_val = "0.0".to_string();
-        self.x2_val = "10.0".to_string();
-        self.y1_val = "0.0".to_string();
-        self.y2_val = "10.0".to_string();
+        self.x1_val = "".to_string();
+        self.x2_val = "".to_string();
+        self.y1_val = "".to_string();
+        self.y2_val = "".to_string();
         self.log_x = false;
         self.log_y = false;
 

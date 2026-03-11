@@ -69,19 +69,12 @@ fn draw_axis_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                     ui.horizontal(|ui| {
                         ui.colored_label(Color32::from_rgb(0x42, 0x85, 0xF4), "X-Axis");
                         let tick_info = format!("({} ticks)", axis_result.x_ticks.len());
-                        ui.label(
-                            egui::RichText::new(tick_info)
-                                .small()
-                                .color(Color32::GRAY),
-                        );
-                        ui.with_layout(
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                if ui.button("Apply").clicked() {
-                                    actions.push(Action::MaskApplyAxis(AxisHighlight::X));
-                                }
-                            },
-                        );
+                        ui.label(egui::RichText::new(tick_info).small().color(Color32::GRAY));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Apply").clicked() {
+                                actions.push(Action::MaskApplyAxis(AxisHighlight::X));
+                            }
+                        });
                     });
                 });
 
@@ -108,19 +101,12 @@ fn draw_axis_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                     ui.horizontal(|ui| {
                         ui.colored_label(Color32::from_rgb(0x34, 0xA8, 0x53), "Y-Axis");
                         let tick_info = format!("({} ticks)", axis_result.y_ticks.len());
-                        ui.label(
-                            egui::RichText::new(tick_info)
-                                .small()
-                                .color(Color32::GRAY),
-                        );
-                        ui.with_layout(
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                if ui.button("Apply").clicked() {
-                                    actions.push(Action::MaskApplyAxis(AxisHighlight::Y));
-                                }
-                            },
-                        );
+                        ui.label(egui::RichText::new(tick_info).small().color(Color32::GRAY));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Apply").clicked() {
+                                actions.push(Action::MaskApplyAxis(AxisHighlight::Y));
+                            }
+                        });
                     });
                 });
 
@@ -160,7 +146,7 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                 .color(Color32::LIGHT_GRAY),
         );
         let mut tol = state.mask.color_tolerance;
-        let slider = egui::Slider::new(&mut tol, 5.0..=80.0)
+        let slider = egui::Slider::new(&mut tol, 10.0..=120.0)
             .step_by(1.0)
             .show_value(false);
         if ui.add_sized([50.0, 18.0], slider).changed() {
@@ -170,7 +156,7 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
         if ui
             .add(
                 egui::DragValue::new(&mut tol_drag)
-                    .range(5.0..=80.0)
+                    .range(10.0..=120.0)
                     .speed(0.5),
             )
             .changed()
@@ -213,10 +199,8 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         // Color swatch
-                        let (rect, _) = ui.allocate_exact_size(
-                            egui::vec2(16.0, 16.0),
-                            egui::Sense::hover(),
-                        );
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
                         ui.painter().rect_filled(
                             rect,
                             3.0,
@@ -242,8 +226,7 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                             .show_ui(ui, |ui| {
                                 if ui
                                     .selectable_label(
-                                        group.curve_mode
-                                            == crate::state::DataCurveMode::Continuous,
+                                        group.curve_mode == crate::state::DataCurveMode::Continuous,
                                         "Curve",
                                     )
                                     .clicked()
@@ -255,8 +238,7 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                                 }
                                 if ui
                                     .selectable_label(
-                                        group.curve_mode
-                                            == crate::state::DataCurveMode::Scatter,
+                                        group.curve_mode == crate::state::DataCurveMode::Scatter,
                                         "Scatter",
                                     )
                                     .clicked()
@@ -272,11 +254,7 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                         if group.curve_mode == crate::state::DataCurveMode::Continuous {
                             let mut pts = group.point_count;
                             if ui
-                                .add(
-                                    egui::DragValue::new(&mut pts)
-                                        .range(2..=200)
-                                        .prefix("n="),
-                                )
+                                .add(egui::DragValue::new(&mut pts).range(2..=200).prefix("n="))
                                 .changed()
                             {
                                 actions.push(Action::MaskSetDataPoints(idx, pts));
@@ -309,10 +287,7 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
 
         // Finish button
         if ui
-            .add(
-                egui::Button::new("✅ Finish")
-                    .min_size(egui::vec2(ui.available_width(), 28.0)),
-            )
+            .add(egui::Button::new("✅ Finish").min_size(egui::vec2(ui.available_width(), 28.0)))
             .on_hover_text("Clear mask and finish data recognition")
             .clicked()
         {
