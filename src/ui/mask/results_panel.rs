@@ -180,6 +180,13 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
         );
         ui.add_space(2.0);
 
+        // Calculate total non-background pixels for percentage display
+        let total_pixels: usize = data_result
+            .groups
+            .iter()
+            .map(|g| g.pixel_coords.len())
+            .sum();
+
         for (idx, group) in data_result.groups.iter().enumerate() {
             let is_highlighted = state.mask.highlight_data_idx == Some(idx);
 
@@ -207,11 +214,24 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                             Color32::from_rgb(group.color[0], group.color[1], group.color[2]),
                         );
 
-                        // Pixel count
-                        ui.label(
-                            egui::RichText::new(format!("{}px", group.pixel_coords.len()))
-                                .small()
-                                .color(Color32::LIGHT_GRAY),
+                        // Pixel count (percentage)
+                        let percent = if total_pixels > 0 {
+                            (group.pixel_coords.len() as f32 / total_pixels as f32) * 100.0
+                        } else {
+                            0.0
+                        };
+
+                        // Fixed width label to prevent jittering when percentages change slightly
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(25.0, ui.available_height()),
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                ui.label(
+                                    egui::RichText::new(format!("{:.1}%", percent))
+                                        .small()
+                                        .color(Color32::LIGHT_GRAY),
+                                );
+                            },
                         );
 
                         // Mode selector
@@ -254,7 +274,7 @@ fn draw_data_section(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                         if group.curve_mode == crate::state::DataCurveMode::Continuous {
                             let mut pts = group.point_count;
                             if ui
-                                .add(egui::DragValue::new(&mut pts).range(2..=200).prefix("n="))
+                                .add(egui::DragValue::new(&mut pts).range(2..=200).suffix(" Pts"))
                                 .changed()
                             {
                                 actions.push(Action::MaskSetDataPoints(idx, pts));
