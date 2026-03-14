@@ -2,7 +2,7 @@ use eframe::egui;
 use egui::{Color32, Pos2, Rect};
 
 use crate::action::Action;
-use crate::state::{AppMode, AppState};
+use crate::state::{AppMode, AppState, ConstrainedAxis};
 
 /// Handle all mouse interactions on the canvas: clicks, drags, box-select,
 /// hover detection, context menus, and zoom/pan.
@@ -101,15 +101,10 @@ pub fn handle_mouse(
             actions.push(Action::SetHoveredData(hover_hit_data));
         }
 
-        // Compute effective mode (Space → Pan, Alt → Delete)
-        let is_alt_pressed = ctx.input(|i| i.modifiers.alt);
+        // Compute effective mode (Space → Pan)
         let is_space_held = ctx.input(|i| i.key_down(egui::Key::Space));
         let effective_mode = if is_space_held {
             AppMode::Pan
-        } else if is_alt_pressed
-            && (state.mode == AppMode::Select || state.mode == AppMode::AddData)
-        {
-            AppMode::Delete
         } else {
             state.mode
         };
@@ -294,30 +289,87 @@ fn handle_mask_mouse(
     response: &egui::Response,
     actions: &mut Vec<Action>,
 ) {
-    // Only paint with left mouse button
+    let is_shift = ctx.input(|i| i.modifiers.shift);
+
+    // Helper: convert screen position to image coordinates
+    let screen_to_image = |pos: egui::Pos2| -> (f32, f32) {
+        let rect_min = response.rect.min;
+        let img_pt = pos - rect_min - state.pan;
+        (img_pt.x / state.zoom, img_pt.y / state.zoom)
+    };
+
+    let mask = if state.mode == AppMode::AxisMask {
+        &state.axis_mask
+    } else {
+        &state.data_mask
+    };
+
+    // ── Drag started ──
     if response.drag_started_by(egui::PointerButton::Primary) {
         actions.push(Action::MaskPaintStart);
-        // Paint at the starting position
         if let Some(mouse_pos) = ctx.input(|i| i.pointer.interact_pos()) {
-            let rect_min = response.rect.min;
-            let img_pt = mouse_pos - rect_min - state.pan;
-            let img_x = img_pt.x / state.zoom;
-            let img_y = img_pt.y / state.zoom;
+            let (img_x, img_y) = screen_to_image(mouse_pos);
             actions.push(Action::MaskPaintStroke { x: img_x, y: img_y });
         }
     }
 
+    // ── Dragging (with optional Shift axis constraint) ──
     if response.dragged_by(egui::PointerButton::Primary) {
         if let Some(mouse_pos) = ctx.input(|i| i.pointer.hover_pos()) {
-            let rect_min = response.rect.min;
-            let img_pt = mouse_pos - rect_min - state.pan;
-            let img_x = img_pt.x / state.zoom;
-            let img_y = img_pt.y / state.zoom;
-            actions.push(Action::MaskPaintStroke { x: img_x, y: img_y });
+            let (img_x, img_y) = screen_to_image(mouse_pos);
+
+            if is_shift {
+                if let Some((ox, oy)) = mask.drag_origin {
+                    let dx = (img_x - ox).abs();
+                    let dy = (img_y - oy).abs();
+
+                    // Determine or reuse locked axis
+                    let axis = mask.constrained_axis.unwrap_or(if dx >= dy {
+                        ConstrainedAxis::Horizontal
+                    } else {
+                        ConstrainedAxis::Vertical
+                    });
+
+                    // Lock axis after a small movement threshold
+                    if mask.constrained_axis.is_none() && (dx > 2.0 || dy > 2.0) {
+                        actions.push(Action::MaskSetConstrainedAxis(Some(axis)));
+                    }
+
+                    // Apply constraint
+                    let (cx, cy) = match axis {
+                        ConstrainedAxis::Horizontal => (img_x, oy),
+                        ConstrainedAxis::Vertical => (ox, img_y),
+                    };
+                    actions.push(Action::MaskPaintStroke { x: cx, y: cy });
+                } else {
+                    actions.push(Action::MaskPaintStroke { x: img_x, y: img_y });
+                }
+            } else {
+                // Shift released mid-drag: clear constraint
+                if mask.constrained_axis.is_some() {
+                    actions.push(Action::MaskSetConstrainedAxis(None));
+                }
+                actions.push(Action::MaskPaintStroke { x: img_x, y: img_y });
+            }
         }
     }
 
+    // ── Drag stopped ──
     if response.drag_stopped_by(egui::PointerButton::Primary) {
         actions.push(Action::MaskPaintEnd(ctx.clone()));
+    }
+
+    // ── Single click (no drag movement) ──
+    if response.clicked_by(egui::PointerButton::Primary) {
+        if let Some(mouse_pos) = ctx.input(|i| i.pointer.interact_pos()) {
+            let (img_x, img_y) = screen_to_image(mouse_pos);
+            actions.push(Action::MaskPaintStart);
+            if is_shift && mask.last_stroke_end.is_some() {
+                actions.push(Action::MaskShiftClickLine { x: img_x, y: img_y });
+            } else {
+                actions.push(Action::MaskPaintStroke { x: img_x, y: img_y });
+            }
+            actions.push(Action::MaskPaintEnd(ctx.clone()));
+        }
     }
 }

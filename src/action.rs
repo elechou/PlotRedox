@@ -101,6 +101,11 @@ pub enum Action {
         y: f32,
     },
     MaskPaintEnd(eframe::egui::Context),
+    MaskShiftClickLine {
+        x: f32,
+        y: f32,
+    },
+    MaskSetConstrainedAxis(Option<crate::state::ConstrainedAxis>),
     MaskSetColorTolerance(f32),
     ApplyAxisDetection(crate::state::AxisDetectionResult, u64),
     ApplyDataDetection(crate::state::DataDetectionResult, u64),

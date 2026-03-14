@@ -19,6 +19,12 @@ pub enum MaskMode {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub enum ConstrainedAxis {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum AxisHighlight {
     X,
     Y,
@@ -114,6 +120,12 @@ pub struct MaskState {
     pub painting: bool,
     /// Previous mouse position for interpolation
     pub last_paint_pos: Option<(f32, f32)>,
+    /// Endpoint of the last completed stroke (for Shift+Click line drawing)
+    pub last_stroke_end: Option<(f32, f32)>,
+    /// Drag start point in image coords (for Shift+Drag axis constraint)
+    pub drag_origin: Option<(f32, f32)>,
+    /// Locked axis during Shift+Drag
+    pub constrained_axis: Option<ConstrainedAxis>,
 
     /// Detected background color of the image
     pub bg_color: Option<[u8; 3]>,
@@ -160,6 +172,9 @@ impl Default for MaskState {
             visible: true,
             painting: false,
             last_paint_pos: None,
+            last_stroke_end: None,
+            drag_origin: None,
+            constrained_axis: None,
             bg_color: None,
             axis_result: None,
             data_result: None,
@@ -603,12 +618,12 @@ impl AppState {
             data_pts: self.data_pts.clone(),
             groups: self.groups.clone(),
             active_group_idx: self.active_group_idx,
-            axis_mask_buffer: if self.axis_mask.active {
+            axis_mask_buffer: if !self.axis_mask.buffer.is_empty() {
                 Some(self.axis_mask.buffer.clone())
             } else {
                 None
             },
-            data_mask_buffer: if self.data_mask.active {
+            data_mask_buffer: if !self.data_mask.buffer.is_empty() {
                 Some(self.data_mask.buffer.clone())
             } else {
                 None

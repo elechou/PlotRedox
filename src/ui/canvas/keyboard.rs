@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use crate::action::Action;
-use crate::state::{AppMode, AppState};
+use crate::state::{AppMode, AppState, MaskTool};
 
 /// Handle all canvas-scoped keyboard shortcuts.
 ///
@@ -63,5 +63,33 @@ pub fn handle_keyboard(
             dy: img_nudge_y,
         });
         actions.push(Action::RecalculateData);
+    }
+
+    // --- Mask-mode shortcuts ---
+    if matches!(state.mode, AppMode::AxisMask | AppMode::DataMask) {
+        let mask = if state.mode == AppMode::AxisMask {
+            &state.axis_mask
+        } else {
+            &state.data_mask
+        };
+
+        // [ decrease brush size, ] increase brush size
+        if ctx.input(|i| i.key_pressed(egui::Key::OpenBracket)) {
+            let new_size = (mask.brush_size - 5.0).clamp(2.0, 80.0);
+            actions.push(Action::MaskSetBrushSize(new_size));
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::CloseBracket)) {
+            let new_size = (mask.brush_size + 5.0).clamp(2.0, 80.0);
+            actions.push(Action::MaskSetBrushSize(new_size));
+        }
+
+        // X to toggle Pen/Eraser
+        if ctx.input(|i| i.key_pressed(egui::Key::X)) {
+            let new_tool = match mask.tool {
+                MaskTool::Pen => MaskTool::Eraser,
+                MaskTool::Eraser => MaskTool::Pen,
+            };
+            actions.push(Action::MaskSetTool(new_tool));
+        }
     }
 }

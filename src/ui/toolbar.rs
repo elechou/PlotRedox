@@ -29,18 +29,12 @@ pub fn draw_toolbar(
                 .on_hover_text("Pick new points")
                 .clicked()
             {
-                if state.calib_pts.len() == 4 {
-                    actions.push(Action::SetMode(AppMode::AddData));
-                }
+                actions.push(Action::SetMode(AppMode::AddData));
             }
 
-            let is_alt_pressed = ui.ctx().input(|i| i.modifiers.alt);
             if ui
-                .selectable_label(
-                    state.mode == AppMode::Delete || is_alt_pressed,
-                    "\u{2796} Delete",
-                )
-                .on_hover_text("Click points to delete them (or hold Alt)")
+                .selectable_label(state.mode == AppMode::Delete, "\u{2796} Delete")
+                .on_hover_text("Click points to delete them")
                 .clicked()
             {
                 actions.push(Action::SetMode(AppMode::Delete));
