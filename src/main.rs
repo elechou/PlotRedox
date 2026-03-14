@@ -29,8 +29,8 @@ impl PlotRedoxApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // Customize look
         let mut style = (*cc.egui_ctx.style()).clone();
-        // style.visuals = egui::Visuals::light();
-        style.visuals = egui::Visuals::dark();
+        style.visuals = egui::Visuals::light();
+        // style.visuals = egui::Visuals::dark();
         cc.egui_ctx.set_style(style);
 
         Self::default()

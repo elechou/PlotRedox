@@ -59,28 +59,12 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
                 }
             });
 
+            ui.add_space(176.0);
+            ui.add(
+                egui::Label::new(egui::RichText::new("|").color(ui.visuals().weak_text_color()))
+                    .selectable(false),
+            );
             ui.add_space(8.0);
-            ui.add(egui::Label::new("|").selectable(false));
-            ui.add_space(8.0);
-
-            // ── Quick-Access Toolbar Buttons ──────────────────────
-            let is_dark = ctx.style().visuals.dark_mode;
-            let icon = if is_dark { "\u{1F506}" } else { "\u{1F319}" };
-            if ui.button(icon).on_hover_text("Toggle Theme").clicked() {
-                if is_dark {
-                    ctx.set_visuals(egui::Visuals::light());
-                } else {
-                    ctx.set_visuals(egui::Visuals::dark());
-                }
-            }
-
-            if ui
-                .button("\u{1F4BE}")
-                .on_hover_text("Save Project")
-                .clicked()
-            {
-                actions.push(Action::SaveProject);
-            }
 
             if ui
                 .button("Load Image")
@@ -97,13 +81,33 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
                 paste_clipboard_image(state, ctx, actions);
             }
 
-            // Right-aligned IDE toggle
+            if ui
+                // .button("\u{1F4BE}")
+                .button("Save Project")
+                .on_hover_text("Save Project")
+                .clicked()
+            {
+                actions.push(Action::SaveProject);
+            }
+
+            // Right-aligned Tools
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .selectable_label(state.ide.is_open, "\u{1F5B3} Script IDE")
                     .clicked()
                 {
                     actions.push(Action::ToggleIDE);
+                }
+
+                // ── Quick-Access Toolbar Buttons ──────────────────────
+                let is_dark = ctx.style().visuals.dark_mode;
+                let icon = if is_dark { "\u{1F506}" } else { "\u{1F319}" };
+                if ui.button(icon).on_hover_text("Toggle Theme").clicked() {
+                    if is_dark {
+                        ctx.set_visuals(egui::Visuals::light());
+                    } else {
+                        ctx.set_visuals(egui::Visuals::dark());
+                    }
                 }
             });
         });

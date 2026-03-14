@@ -25,7 +25,9 @@ pub fn draw_mask_toolbar(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<
         .collapsible(false)
         .resizable(false)
         .title_bar(false)
-        .anchor(egui::Align2::LEFT_TOP, [325.0, 25.0]);
+        .default_width(280.0)
+        .anchor(egui::Align2::RIGHT_TOP, [-5.0, 60.0])
+        .order(egui::Order::Foreground);
 
     window.show(ui.ctx(), |ui| {
         ui.horizontal(|ui| {
@@ -63,8 +65,12 @@ pub fn draw_mask_toolbar(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<
             } else {
                 "\u{1F6AB}"
             };
+
             if ui
-                .selectable_label(!mask.visible, vis_icon)
+                .add_sized(
+                    egui::vec2(22.0, 18.0),
+                    egui::Button::new(vis_icon).selected(!mask.visible),
+                )
                 .on_hover_text(if mask.visible {
                     "Hide mask overlay"
                 } else {

@@ -10,7 +10,7 @@ use crate::state::{AppMode, AppState};
 pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
     egui::SidePanel::left("left_panel")
         .resizable(false)
-        .exact_width(320.0)
+        .exact_width(300.0)
         .show(ctx, |ui| {
             ui.add_space(10.0);
 
@@ -25,33 +25,45 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 ui.strong("1. Axes Calibration");
                 ui.add_space(10.0);
 
-                ui.horizontal(|ui| {
-                    // Magic axis detection button
-                    let magic_active = state.axis_mask.active
-                        && state.axis_mask.mask_mode == crate::state::MaskMode::AxisCalib;
-                    let mut magic_btn = egui::Button::new("✨ Magic");
-                    if magic_active {
-                        magic_btn = magic_btn.fill(Color32::from_rgb(180, 120, 50));
-                    }
-                    if ui
-                        .add(magic_btn)
-                        .on_hover_text("Auto-detect axes by painting a mask")
-                        .clicked()
-                    {
-                        actions.push(Action::MaskToggleForAxis);
-                    }
+                if state.calib_pts.len() < 4 {
+                    ui.colored_label(
+                        Color32::RED,
+                        format!(
+                            "⚠ Calibrate 4 axes points first ({}/4)",
+                            state.calib_pts.len()
+                        ),
+                    );
+                    ui.add_space(5.0);
+                }
 
+                let magic_active = state.axis_mask.active
+                    && state.axis_mask.mask_mode == crate::state::MaskMode::AxisCalib;
+
+                if ui
+                    .add_sized(
+                        [ui.available_width(), 24.0],
+                        egui::Button::new("\u{1F4D0} Smart Axis Brush").selected(magic_active),
+                    )
+                    .on_hover_text("Auto-detect axes by painting a mask")
+                    .clicked()
+                {
+                    actions.push(Action::MaskToggleForAxis);
+                }
+
+                ui.add_space(5.0);
+
+                ui.horizontal(|ui| {
                     let btn_text = if state.mode == AppMode::AddCalib {
                         "Stop"
                     } else {
-                        "Manual Place"
+                        "Manually Place Axes Points"
                     };
                     let mut btn = egui::Button::new(btn_text);
                     if state.mode == AppMode::AddCalib {
-                        btn = btn.fill(Color32::from_rgb(180, 120, 50));
+                        btn = btn.fill(Color32::from_rgb(50, 120, 180));
                     }
 
-                    if ui.add(btn).clicked() {
+                    if ui.add_sized([168.0, 20.0], btn).clicked() {
                         actions.push(Action::SetMode(if state.mode == AppMode::AddCalib {
                             AppMode::Select
                         } else {
@@ -59,11 +71,10 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                         }));
                     }
 
-                    if ui.button("Clear").clicked() {
+                    let clear_btn = egui::Button::new("Clear Axes Points");
+                    if ui.add_sized([100.0, 20.0], clear_btn).clicked() {
                         actions.push(Action::ClearCalib);
                     }
-
-                    ui.label(format!("{}/4", state.calib_pts.len()));
                 });
 
                 ui.add_space(10.0);
@@ -150,11 +161,6 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 ui.strong("2. Data Extraction");
                 ui.add_space(10.0);
 
-                if state.calib_pts.len() < 4 {
-                    ui.colored_label(Color32::RED, "⚠ Calibrate 4 axes points first");
-                    ui.add_space(5.0);
-                }
-
                 ui.label(format!("Total Datapoints: {}", state.data_pts.len()));
 
                 ui.add_space(5.0);
@@ -162,18 +168,11 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 let mask_active = state.data_mask.active
                     && state.data_mask.mask_mode == crate::state::MaskMode::DataRecog;
 
-                let btn_text = if state.data_mask.is_computing {
-                    "\u{23F3} Computing..."
-                } else {
-                    "\u{1F17E} Auto-extract Data (Mask)"
-                };
-
-                let mut mask_btn = egui::Button::new(btn_text);
-                if mask_active {
-                    mask_btn = mask_btn.fill(Color32::from_rgb(50, 120, 180));
-                }
                 if ui
-                    .add_sized([ui.available_width(), 24.0], mask_btn)
+                    .add_sized(
+                        [ui.available_width(), 24.0],
+                        egui::Button::new("\u{1F5E0} Smart Data Brush").selected(mask_active),
+                    )
                     .on_hover_text(
                         "Auto-extract data points using color recognition via a painted mask",
                     )
@@ -182,7 +181,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                     actions.push(Action::MaskToggle);
                 }
 
-                ui.add_space(10.0);
+                ui.add_space(5.0);
 
                 let _palette = [
                     Color32::from_rgb(0xe4, 0x1a, 0x1c), // Red
@@ -193,13 +192,24 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 ];
 
                 ui.horizontal(|ui| {
-                    if ui.button("➕ Add Group").clicked() {
+                    if ui
+                        .add_sized([90.0, 20.0], egui::Button::new("➕ Add Group"))
+                        .clicked()
+                    {
                         actions.push(Action::AddGroup);
                     }
-                    if ui.button("Clear All Data").clicked() {
+
+                    if ui
+                        .add_sized([90.0, 20.0], egui::Button::new("Clear All Data"))
+                        .clicked()
+                    {
                         actions.push(Action::RequestClearData);
                     }
-                    if ui.button("Export CSV").clicked() {
+
+                    if ui
+                        .add_sized([87.0, 20.0], egui::Button::new("Export CSV"))
+                        .clicked()
+                    {
                         actions.push(Action::RequestExportCsv);
                     }
                 });

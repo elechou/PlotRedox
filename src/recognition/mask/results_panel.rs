@@ -25,15 +25,22 @@ pub fn draw_results_panel(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec
         return;
     }
 
+    let screen_rect = ui.ctx().viewport_rect();
+
+    // Calculate the absolute X and Y coordinates for the top right corner
+    // X: Right edge of screen - approximate window width (280.0) - offset (5.0)
+    let start_x = screen_rect.max.x - 280.0 - 19.0;
+
     let window = egui::Window::new("Mask Results")
         .collapsible(true)
         .resizable(false)
         .title_bar(false)
-        .default_pos([325.0, 62.0])
-        .default_width(200.0);
+        .default_width(280.0)
+        .default_pos([start_x, 95.0])
+        .order(egui::Order::Foreground);
 
     window.show(ui.ctx(), |ui| {
-        ui.set_min_width(150.0);
+        ui.set_min_width(280.0);
 
         match mask.mask_mode {
             MaskMode::AxisCalib => draw_axis_section(mask, ui, actions),
@@ -48,15 +55,11 @@ fn draw_axis_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions:
         let has_y = axis_result.y_axis.is_some();
 
         if !has_x && !has_y {
-            ui.colored_label(Color32::GRAY, "No axes detected. Paint over axis lines.");
+            ui.label("No axes detected. Paint over axis lines.");
             return;
         }
 
-        ui.label(
-            egui::RichText::new("Axes Calibration")
-                .strong()
-                .color(Color32::WHITE),
-        );
+        ui.label(egui::RichText::new("Axes Calibration").strong());
         ui.add_space(2.0);
 
         // X-Axis row
@@ -73,7 +76,7 @@ fn draw_axis_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions:
                     ui.horizontal(|ui| {
                         ui.colored_label(Color32::from_rgb(0x42, 0x85, 0xF4), "X-Axis");
                         let tick_info = format!("({} ticks)", axis_result.x_ticks.len());
-                        ui.label(egui::RichText::new(tick_info).small().color(Color32::GRAY));
+                        ui.label(egui::RichText::new(tick_info).small());
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui.button("Apply").clicked() {
                                 actions.push(Action::MaskApplyAxis(AxisHighlight::X));
@@ -105,7 +108,7 @@ fn draw_axis_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions:
                     ui.horizontal(|ui| {
                         ui.colored_label(Color32::from_rgb(0x34, 0xA8, 0x53), "Y-Axis");
                         let tick_info = format!("({} ticks)", axis_result.y_ticks.len());
-                        ui.label(egui::RichText::new(tick_info).small().color(Color32::GRAY));
+                        ui.label(egui::RichText::new(tick_info).small());
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui.button("Apply").clicked() {
                                 actions.push(Action::MaskApplyAxis(AxisHighlight::Y));
@@ -122,38 +125,18 @@ fn draw_axis_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions:
                 actions.push(Action::MaskSetAxisHighlight(None));
             }
         }
-
-        ui.add_space(6.0);
-        ui.separator();
-        ui.add_space(4.0);
-
-        // Finish button
-        if ui
-            .add(
-                egui::Button::new("✅ Finish Calibration")
-                    .min_size(egui::vec2(ui.available_width(), 28.0)),
-            )
-            .on_hover_text("Confirm calibration and switch to data collection mode")
-            .clicked()
-        {
-            actions.push(Action::MaskFinishCalib);
-        }
     }
 }
 
 fn draw_data_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
     // Tolerance slider
     ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new("Tolerance:")
-                .small()
-                .color(Color32::LIGHT_GRAY),
-        );
+        ui.label(egui::RichText::new("Color Tolerance:"));
         let mut tol = mask.color_tolerance;
         let slider = egui::Slider::new(&mut tol, 10.0..=120.0)
             .step_by(1.0)
             .show_value(false);
-        if ui.add_sized([50.0, 18.0], slider).changed() {
+        if ui.add_sized([10.0, 18.0], slider).changed() {
             actions.push(Action::MaskSetColorTolerance(tol));
         }
         let mut tol_drag = mask.color_tolerance;
@@ -173,15 +156,11 @@ fn draw_data_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions:
 
     if let Some(ref data_result) = mask.data_result {
         if data_result.groups.is_empty() {
-            ui.colored_label(Color32::GRAY, "No data colors detected.");
+            ui.label("No data colors detected.");
             return;
         }
 
-        ui.label(
-            egui::RichText::new("Data Recognition")
-                .strong()
-                .color(Color32::WHITE),
-        );
+        ui.label(egui::RichText::new("Data Recognition").strong());
         ui.add_space(2.0);
 
         // Calculate total non-background pixels for percentage display
@@ -230,11 +209,7 @@ fn draw_data_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions:
                             egui::vec2(25.0, ui.available_height()),
                             egui::Layout::right_to_left(egui::Align::Center),
                             |ui| {
-                                ui.label(
-                                    egui::RichText::new(format!("{:.1}%", percent))
-                                        .small()
-                                        .color(Color32::LIGHT_GRAY),
-                                );
+                                ui.label(egui::RichText::new(format!("{:.1}%", percent)).small());
                             },
                         );
 
@@ -287,7 +262,7 @@ fn draw_data_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions:
 
                         // Add button
                         if ui
-                            .button("Add")
+                            .button("Add as Group")
                             .on_hover_text("Create new group with this color and add points")
                             .clicked()
                         {
@@ -303,19 +278,6 @@ fn draw_data_section(mask: &crate::state::MaskState, ui: &mut egui::Ui, actions:
             } else if mask.highlight_data_idx == Some(idx) {
                 actions.push(Action::MaskSetDataHighlight(None));
             }
-        }
-
-        ui.add_space(6.0);
-        ui.separator();
-        ui.add_space(4.0);
-
-        // Finish button
-        if ui
-            .add(egui::Button::new("✅ Finish").min_size(egui::vec2(ui.available_width(), 28.0)))
-            .on_hover_text("Clear mask and finish data recognition")
-            .clicked()
-        {
-            actions.push(Action::MaskFinishCalib);
         }
     }
 }

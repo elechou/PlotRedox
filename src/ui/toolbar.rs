@@ -39,6 +39,29 @@ pub fn draw_toolbar(
             {
                 actions.push(Action::SetMode(AppMode::Delete));
             }
+
+            let magic_active = state.axis_mask.active
+                && state.axis_mask.mask_mode == crate::state::MaskMode::AxisCalib;
+            if ui
+                .selectable_label(magic_active, "\u{1F4D0} Axis Brush")
+                .on_hover_text("Auto-detect axes by painting a mask")
+                .clicked()
+            {
+                actions.push(Action::MaskToggleForAxis);
+            }
+
+            let mask_active = state.data_mask.active
+                && state.data_mask.mask_mode == crate::state::MaskMode::DataRecog;
+            if ui
+                .selectable_label(mask_active, "\u{1F5E0} Data Brush")
+                .on_hover_text(
+                    "Auto-extract data points using color recognition via a painted mask",
+                )
+                .clicked()
+            {
+                actions.push(Action::MaskToggle);
+            }
+
             let is_space_pressed = ui.ctx().input(|i| i.key_down(egui::Key::Space));
             if ui
                 .selectable_label(
