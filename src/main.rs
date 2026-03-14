@@ -4,7 +4,6 @@ pub mod action;
 mod action_handler;
 mod core;
 mod ide;
-mod mask;
 mod project;
 mod recognition;
 mod script;

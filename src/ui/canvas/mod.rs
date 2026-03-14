@@ -8,7 +8,7 @@ use crate::action::Action;
 use crate::state::{AppMode, AppState};
 use crate::ui::toolbar::draw_toolbar;
 
-pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
+pub fn draw_canvas(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
     egui::CentralPanel::default().show(ctx, |ui| {
         let (response, painter) =
             ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
@@ -47,10 +47,10 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
         }
 
         // --- Draw Mask Overlay (after image, before points) ---
-        crate::mask::draw_mask_overlay(state, &painter, &to_screen, zoom);
+        crate::recognition::mask::draw_mask_overlay(state, &painter, &to_screen, zoom);
 
         // --- Draw Mask Highlights (axis/data hover) ---
-        crate::mask::draw_mask_highlights(state, &painter, &to_screen, zoom);
+        crate::recognition::mask::draw_mask_highlights(state, ctx, &painter, &to_screen, zoom);
 
         // Draw Box Selection Rectangle
         if let Some(start_pos) = state.box_start {
@@ -147,9 +147,9 @@ pub fn draw_canvas(state: &AppState, ctx: &egui::Context, actions: &mut Vec<Acti
         draw_toolbar(state, ui, response.rect, actions);
 
         // --- Mask sub-toolbar + results panel + brush cursor ---
-        crate::mask::draw_mask_toolbar(state, ui, actions);
-        crate::mask::results_panel::draw_results_panel(state, ui, actions);
-        crate::mask::draw_mask_cursor(state, &painter, ctx, &response, zoom);
+        crate::recognition::mask::draw_mask_toolbar(state, ui, actions);
+        crate::recognition::mask::results_panel::draw_results_panel(state, ui, actions);
+        crate::recognition::mask::draw_mask_cursor(state, &painter, ctx, &response, zoom);
 
         // --- Cursor style ---
         let is_alt_pressed = ctx.input(|i| i.modifiers.alt);

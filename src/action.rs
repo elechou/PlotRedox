@@ -96,7 +96,10 @@ pub enum Action {
     MaskToggleVisibility,
     MaskClear,
     MaskPaintStart,
-    MaskPaintStroke { x: f32, y: f32 },
+    MaskPaintStroke {
+        x: f32,
+        y: f32,
+    },
     MaskPaintEnd(eframe::egui::Context),
     MaskSetColorTolerance(f32),
     ApplyAxisDetection(crate::state::AxisDetectionResult, u64),

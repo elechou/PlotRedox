@@ -315,14 +315,12 @@ pub fn handle(state: &mut AppState, action: Action) {
                 state.active_group_idx = snapshot.active_group_idx;
                 if let Some(buf) = snapshot.axis_mask_buffer {
                     state.axis_mask.buffer = buf;
-                    state.axis_mask.axis_result = None;
-                    state.axis_mask.data_result = None;
+                    state.axis_mask.clear_detection_results();
                     state.axis_mask.texture_dirty = true;
                 }
                 if let Some(buf) = snapshot.data_mask_buffer {
                     state.data_mask.buffer = buf;
-                    state.data_mask.axis_result = None;
-                    state.data_mask.data_result = None;
+                    state.data_mask.clear_detection_results();
                     state.data_mask.texture_dirty = true;
                 }
 
@@ -365,14 +363,12 @@ pub fn handle(state: &mut AppState, action: Action) {
                 state.active_group_idx = snapshot.active_group_idx;
                 if let Some(buf) = snapshot.axis_mask_buffer {
                     state.axis_mask.buffer = buf;
-                    state.axis_mask.axis_result = None;
-                    state.axis_mask.data_result = None;
+                    state.axis_mask.clear_detection_results();
                     state.axis_mask.texture_dirty = true;
                 }
                 if let Some(buf) = snapshot.data_mask_buffer {
                     state.data_mask.buffer = buf;
-                    state.data_mask.axis_result = None;
-                    state.data_mask.data_result = None;
+                    state.data_mask.clear_detection_results();
                     state.data_mask.texture_dirty = true;
                 }
 
@@ -672,8 +668,7 @@ pub fn handle(state: &mut AppState, action: Action) {
                 &mut state.data_mask
             };
             mask.buffer.fill(false);
-            mask.axis_result = None;
-            mask.data_result = None;
+            mask.clear_detection_results();
             mask.texture_dirty = true;
         }
         Action::MaskPaintStart => {
@@ -773,22 +768,19 @@ pub fn handle(state: &mut AppState, action: Action) {
                     });
                 }
             } else {
-                mask.axis_result = None;
-                mask.data_result = None;
+                mask.clear_detection_results();
                 mask.is_computing = false;
             }
         }
         Action::ApplyAxisDetection(result, gen) => {
             if state.axis_mask.compute_generation == gen {
-                state.axis_mask.axis_result = Some(result);
-                state.axis_mask.data_result = None;
+                state.axis_mask.set_axis_result(result);
                 state.axis_mask.is_computing = false;
             }
         }
         Action::ApplyDataDetection(result, gen) => {
             if state.data_mask.compute_generation == gen {
-                state.data_mask.data_result = Some(result);
-                state.data_mask.axis_result = None;
+                state.data_mask.set_data_result(result);
                 state.data_mask.is_computing = false;
             }
         }

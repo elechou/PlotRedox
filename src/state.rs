@@ -61,6 +61,38 @@ pub struct DataDetectionResult {
     pub groups: Vec<DetectedColorGroup>,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct PixelBounds {
+    pub min_x: u32,
+    pub min_y: u32,
+    pub max_x: u32,
+    pub max_y: u32,
+}
+
+impl PixelBounds {
+    pub fn width(self) -> usize {
+        (self.max_x - self.min_x + 1) as usize
+    }
+
+    pub fn height(self) -> usize {
+        (self.max_y - self.min_y + 1) as usize
+    }
+}
+
+#[derive(Clone)]
+pub struct CachedHighlight {
+    pub bounds: PixelBounds,
+    pub contours: Vec<Vec<(u32, u32)>>,
+    pub texture: TextureHandle,
+}
+
+#[derive(Clone, Default)]
+pub struct MaskHighlightCache {
+    pub axis_x: Option<CachedHighlight>,
+    pub axis_y: Option<CachedHighlight>,
+    pub data_groups: Vec<Option<CachedHighlight>>,
+}
+
 #[derive(Clone)]
 pub struct MaskState {
     /// Mask buffer: true = masked pixel (image coordinates)
@@ -97,6 +129,8 @@ pub struct MaskState {
     pub highlight_axis: Option<AxisHighlight>,
     /// Which data color group to highlight on hover
     pub highlight_data_idx: Option<usize>,
+    /// Cached region textures + contours for hover highlights.
+    pub highlight_cache: MaskHighlightCache,
 
     /// Cached GPU texture for mask overlay (avoids moiré from per-pixel rects)
     pub mask_texture: Option<eframe::egui::TextureHandle>,
@@ -132,6 +166,7 @@ impl Default for MaskState {
             color_tolerance: 60.0,
             highlight_axis: None,
             highlight_data_idx: None,
+            highlight_cache: MaskHighlightCache::default(),
             mask_texture: None,
             texture_dirty: false,
             stroke_snapshot: Vec::new(),
@@ -150,6 +185,7 @@ impl MaskState {
             self.buffer = vec![false; (w as usize) * (h as usize)];
             self.texture_dirty = true;
             self.mask_texture = None;
+            self.clear_highlight_cache();
         }
     }
 
@@ -196,6 +232,37 @@ impl MaskState {
         self.buffer.iter().any(|&b| b)
     }
 
+    pub fn clear_highlight_cache(&mut self) {
+        self.highlight_axis = None;
+        self.highlight_data_idx = None;
+        self.highlight_cache = MaskHighlightCache::default();
+    }
+
+    pub fn clear_detection_results(&mut self) {
+        self.axis_result = None;
+        self.data_result = None;
+        self.clear_highlight_cache();
+    }
+
+    pub fn set_axis_result(&mut self, result: AxisDetectionResult) {
+        self.axis_result = Some(result);
+        self.data_result = None;
+        self.highlight_data_idx = None;
+        self.highlight_cache = MaskHighlightCache::default();
+    }
+
+    pub fn set_data_result(&mut self, result: DataDetectionResult) {
+        self.highlight_axis = None;
+        self.highlight_data_idx = None;
+        self.highlight_cache = MaskHighlightCache {
+            axis_x: None,
+            axis_y: None,
+            data_groups: vec![None; result.groups.len()],
+        };
+        self.data_result = Some(result);
+        self.axis_result = None;
+    }
+
     /// Rebuild the GPU texture from the bool buffer if dirty.
     /// Call this once per frame before drawing.
     pub fn rebuild_texture_if_dirty(&mut self, ctx: &eframe::egui::Context, name: &str) {
@@ -220,15 +287,8 @@ impl MaskState {
             // else: fully transparent (already zeroed)
         }
 
-        let color_image = eframe::egui::ColorImage::from_rgba_unmultiplied(
-            [w, h],
-            &pixels,
-        );
-        let handle = ctx.load_texture(
-            name,
-            color_image,
-            eframe::egui::TextureOptions::LINEAR,
-        );
+        let color_image = eframe::egui::ColorImage::from_rgba_unmultiplied([w, h], &pixels);
+        let handle = ctx.load_texture(name, color_image, eframe::egui::TextureOptions::LINEAR);
         self.mask_texture = Some(handle);
     }
 }

@@ -102,8 +102,12 @@ pub fn draw_ui(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Acti
     crate::ide::draw_ide(state, ctx, actions);
 
     // Rebuild mask textures if buffer changed (must happen before drawing)
-    state.axis_mask.rebuild_texture_if_dirty(ctx, "axis_mask_tex");
-    state.data_mask.rebuild_texture_if_dirty(ctx, "data_mask_tex");
+    state
+        .axis_mask
+        .rebuild_texture_if_dirty(ctx, "axis_mask_tex");
+    state
+        .data_mask
+        .rebuild_texture_if_dirty(ctx, "data_mask_tex");
 
     // Central Image Viewport Canvas & Toolbar (CentralPanel — must be last)
     canvas::draw_canvas(state, ctx, actions);

@@ -1,6 +1,7 @@
 pub mod axis;
 pub mod data;
 mod geometry;
+pub mod mask;
 mod pixels;
 mod spatial;
 

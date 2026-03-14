@@ -158,10 +158,10 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 ui.label(format!("Total Datapoints: {}", state.data_pts.len()));
 
                 ui.add_space(5.0);
-                
-                let mask_active = state.data_mask.active 
+
+                let mask_active = state.data_mask.active
                     && state.data_mask.mask_mode == crate::state::MaskMode::DataRecog;
-                
+
                 let btn_text = if state.data_mask.is_computing {
                     "\u{23F3} Computing..."
                 } else {
@@ -172,13 +172,16 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 if mask_active {
                     mask_btn = mask_btn.fill(Color32::from_rgb(50, 120, 180));
                 }
-                if ui.add_sized([ui.available_width(), 24.0], mask_btn)
-                    .on_hover_text("Auto-extract data points using color recognition via a painted mask")
-                    .clicked() 
+                if ui
+                    .add_sized([ui.available_width(), 24.0], mask_btn)
+                    .on_hover_text(
+                        "Auto-extract data points using color recognition via a painted mask",
+                    )
+                    .clicked()
                 {
                     actions.push(Action::MaskToggle);
                 }
-                
+
                 ui.add_space(10.0);
 
                 let _palette = [
