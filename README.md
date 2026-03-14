@@ -1,6 +1,6 @@
 # PlotRedox
 
-A native, high-performance plot digitizer built with **Rust** and **egui**. Load an image of a chart or plot, calibrate the axes, click on data points, and export the extracted coordinates to CSV — with a built-in **scripting IDE** for on-the-fly data analysis.
+A native, high-performance plot digitizer built with **Rust** and **egui**. Load an image of a chart or plot, calibrate the axes, click on data points, and export the extracted coordinates to CSV — with **computer-vision-assisted recognition** and a built-in **scripting IDE** for on-the-fly data analysis.
 
 An open source alternative to GetData Graph Digitizer, WebPlotDigitizer, PlotDigitizer.
 
@@ -16,6 +16,31 @@ An open source alternative to GetData Graph Digitizer, WebPlotDigitizer, PlotDig
 - Undo / Redo support
 - Dark and light themes
 - Cross-platform (Linux, macOS, Windows)
+
+### Project Management
+- **Save / Open projects** as `.prdx` files (ZIP archive containing calibration data, points, groups, and the embedded image)
+- **Save As** to create copies of your project
+- **New Project** with unsaved-changes protection — prompts to save before discarding work
+- Window title reflects project name and dirty state
+- `Ctrl+S` / `Cmd+S` quick save
+
+### Computer Vision Recognition
+Automatically detect axes and data points using mask-based computer vision, eliminating the need to click every point manually.
+
+#### Axis Recognition
+1. Switch to **Axis Mask** mode from the canvas toolbar
+2. Paint a mask over the axis lines using the brush tool (pen/eraser, adjustable brush size)
+3. The recognition engine detects axis lines (via directional line fitting) and tick marks
+4. Review the detected X/Y axes with visual highlighting, then apply to set calibration points
+
+#### Data Recognition
+1. Switch to **Data Mask** mode from the canvas toolbar
+2. Paint a mask over the data region
+3. The engine performs color-based clustering to separate different data series
+4. For each detected color group, choose between **Continuous** (curve sampling) or **Scatter** (point detection) mode
+5. Adjust the number of sampled points and preview before adding to your dataset
+
+Both recognition modes run on background threads to keep the UI responsive. Mask painting supports Shift+Click for straight lines and constrained-axis painting (horizontal/vertical lock).
 
 ### Script IDE
 - Built-in live scripting IDE powered by [Rhai](https://rhai.rs/) (Rust-embedded scripting language)
@@ -98,14 +123,32 @@ A sample image (`sample_plot.png`) is included for testing.
 
 ### Step 2 – Calibrate the axes
 
+**Manual calibration:**
+
 1. Click **Place Calib Points** and click on **4 known reference points** on the image (two along X-axis, two along Y-axis).
 2. Enter the real-world values for each reference point (X₁, X₂, Y₁, Y₂) in the left sidebar.
 3. Enable **Log X** / **Log Y** checkboxes if an axis uses a logarithmic scale.
 
+**Automatic calibration (CV-assisted):**
+
+1. Switch to **Axis Mask** mode in the canvas toolbar.
+2. Paint over the axis lines with the brush tool.
+3. The engine detects axes and tick marks automatically.
+4. Review the highlighted results, then click **Apply** to set calibration points.
+
 ### Step 3 – Extract data points
+
+**Manual extraction:**
 
 1. Switch to **Add Data** mode using the canvas toolbar.
 2. Click on data points in the plot. Extracted coordinates appear in the left sidebar.
+
+**Automatic extraction (CV-assisted):**
+
+1. Switch to **Data Mask** mode in the canvas toolbar.
+2. Paint over the data region.
+3. Review detected color groups — choose curve mode (Continuous/Scatter) and point count.
+4. Click **Add** to import detected points into your dataset.
 
 ### Step 4 – Organize & export
 
@@ -113,7 +156,13 @@ A sample image (`sample_plot.png`) is included for testing.
 - Drag and drop points between groups.
 - Click **Export CSV** to save all data.
 
-### Step 5 – Analyze with scripts
+### Step 5 – Save your project
+
+- **Ctrl+S** / **Cmd+S** to save (or **File → Save Project**)
+- **File → Save Project As…** to save to a new location
+- Projects are saved as `.prdx` files containing all data and the embedded image
+
+### Step 6 – Analyze with scripts
 
 1. Click **Script IDE** in the top-right corner to open the IDE panel.
 2. Select a template from **Script Templates** or write your own Rhai script.
@@ -124,13 +173,14 @@ A sample image (`sample_plot.png`) is included for testing.
 
 | Shortcut | Action |
 |---|---|
+| `Ctrl+S` / `Cmd+S` | Save project |
 | `Ctrl+Z` / `Cmd+Z` | Undo |
 | `Ctrl+Shift+Z` / `Cmd+Shift+Z` | Redo |
+| `Ctrl+V` / `Cmd+V` | Paste image from clipboard |
 | `Delete` / `Backspace` | Delete selected points |
 | `Arrow keys` | Nudge selected points |
-| `Ctrl+V` / `Cmd+V` | Paste image from clipboard |
 | `Escape` | Cancel current mode |
-| `Shift+Click` | Range select |
+| `Shift+Click` | Range select / straight line (in mask mode) |
 | `Ctrl+Click` / `Cmd+Click` | Toggle individual selection |
 
 ## Customizing Built-in Scripts
@@ -154,39 +204,60 @@ The build system (`build.rs`) automatically scans the `example_scripts/` directo
 ```
 PlotRedox/
 ├── src/
-│   ├── main.rs           # Application entry point & module declarations
-│   ├── action.rs         # Action enum definitions for global events
-│   ├── action_handler.rs # Core application logic (Action -> State)
-│   ├── core.rs           # Calibration math and coordinate mapping
-│   ├── state.rs          # Runtime state data structures
+│   ├── main.rs              # Application entry point & eframe lifecycle
+│   ├── action.rs            # Action enum definitions for all state-changing events
+│   ├── action_handler.rs    # Core dispatch logic (Action → State mutation)
+│   ├── core.rs              # Calibration math and coordinate mapping
+│   ├── state.rs             # Runtime state & serializable project data structures
+│   ├── project.rs           # Project save/load (.prdx ZIP format)
 │   ├── ui/
-│   │   ├── mod.rs        # UI root & orchestration
-│   │   ├── top_panel.rs  # Menu bar & quick-access toolbar
-│   │   ├── modals.rs     # Centralized modal dialogs
-│   │   ├── panel.rs      # Left sidebar (calibration, groups, data)
-│   │   ├── canvas.rs     # Image viewport and interaction
-│   │   └── toolbar.rs    # Canvas mode toolbar (Select, Add, Pan)
+│   │   ├── mod.rs           # UI root & orchestration
+│   │   ├── top_panel.rs     # Menu bar & quick-access toolbar
+│   │   ├── modals.rs        # Modal dialogs (save confirmation, etc.)
+│   │   ├── panel.rs         # Left sidebar (calibration, groups, data)
+│   │   ├── toolbar.rs       # Canvas mode toolbar (Select, Add, Pan, Mask...)
+│   │   └── canvas/
+│   │       ├── mod.rs       # Image viewport rendering & overlays
+│   │       ├── mouse.rs     # Mouse interaction (drag, click, hover)
+│   │       └── keyboard.rs  # Keyboard shortcuts (nudge, delete)
 │   ├── ide/
-│   │   ├── mod.rs        # IDE panel layout
-│   │   ├── editor.rs     # Code editor with syntax highlighting
-│   │   ├── workspace.rs  # Variable inspector panel
-│   │   ├── inspector.rs  # Data table viewer
-│   │   ├── presets.rs    # Script templates and import/export
-│   │   └── help.rs       # Built-in scripting reference
-│   └── script/
-│       ├── mod.rs        # Rhai engine setup and data binding
-│       └── math.rs       # Math and regression functions
-├── assets/
-│   ├── icon.icns          # macOS app icon
-│   ├── icon.ico           # Windows app icon
-│   └── icon.png           # PNG icon (1024×1024)
-├── example_scripts/       # Built-in script templates (.rhai)
+│   │   ├── mod.rs           # IDE panel layout
+│   │   ├── editor.rs        # Code editor with syntax highlighting
+│   │   ├── workspace.rs     # Variable inspector panel
+│   │   ├── inspector.rs     # Data table viewer
+│   │   ├── presets.rs       # Script templates and import/export
+│   │   └── help.rs          # Built-in scripting reference
+│   ├── script/
+│   │   ├── mod.rs           # Rhai engine setup and data binding
+│   │   └── math.rs          # Math and regression functions
+│   └── recognition/
+│       ├── mod.rs           # Module exports
+│       ├── pixels.rs        # Background color detection
+│       ├── spatial.rs       # Spatial utilities
+│       ├── geometry.rs      # Geometric primitives
+│       ├── axis/
+│       │   ├── mod.rs       # Axis detection algorithm
+│       │   ├── line.rs      # Directional line fitting
+│       │   ├── preprocess.rs # Morphological operations (dilation/erosion)
+│       │   ├── ticks.rs     # Tick mark extraction
+│       │   └── tests.rs     # Unit tests
+│       ├── data/
+│       │   ├── mod.rs       # Data detection entry point
+│       │   ├── clustering.rs # Color-based point grouping
+│       │   ├── sampling.rs  # Point sampling on detected curves
+│       │   ├── curve.rs     # Continuous curve detection
+│       │   └── scatter.rs   # Scatter point detection
+│       └── mask/
+│           ├── mod.rs       # Mask painting UI & detection triggering
+│           └── results_panel.rs # Detection results display & interaction
+├── assets/                  # App icons (macOS .icns, Windows .ico, PNG)
+├── example_scripts/         # Built-in script templates (.rhai)
 ├── docs/
-│   └── scripting_help.md  # Scripting reference (embedded at build)
-├── build.rs               # Auto-discovers example scripts & embeds Windows icon
-├── Cargo.toml             # Dependencies and build configuration
-├── sample_plot.png        # Example plot image
-└── screenshot.png         # Application screenshot
+│   └── scripting_help.md    # Scripting reference (embedded at build time)
+├── build.rs                 # Auto-discovers example scripts & embeds Windows icon
+├── Cargo.toml               # Dependencies and build configuration
+├── sample_plot.png          # Example plot image
+└── screenshot.png           # Application screenshot
 ```
 
 ## License
