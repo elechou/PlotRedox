@@ -503,11 +503,17 @@ pub fn handle(state: &mut AppState, action: Action) {
             // Decode image to RGBA for mask analysis
             let decoded_rgba = bytes.as_ref().and_then(|b| {
                 image::load_from_memory(b).ok().map(|img| {
-                    img.to_rgba8().into_raw()
+                    std::sync::Arc::new(img.to_rgba8().into_raw())
                 })
             });
 
             let mut new_state = AppState::default();
+            
+            // set up the mpsc channels
+            let (tx, rx) = std::sync::mpsc::channel();
+            new_state.mask_tx = Some(tx);
+            new_state.mask_rx = Some(rx);
+
             if let Some(ref rgba) = decoded_rgba {
                 let bg_col = crate::recognition::detect_background_color(
                     rgba,
@@ -527,8 +533,13 @@ pub fn handle(state: &mut AppState, action: Action) {
         }
         Action::LoadClipboardImage(tex, size, bytes, w, h) => {
             let mut new_state = AppState::default();
+            // set up the mpsc channels
+            let (tx, rx) = std::sync::mpsc::channel();
+            new_state.mask_tx = Some(tx);
+            new_state.mask_rx = Some(rx);
+
             // Store decoded RGBA directly from clipboard data
-            new_state.decoded_rgba = Some(bytes.clone());
+            new_state.decoded_rgba = Some(std::sync::Arc::new(bytes.clone()));
             let bg_col = crate::recognition::detect_background_color(&bytes, w, h);
             new_state.axis_mask.bg_color = Some(bg_col);
             new_state.data_mask.bg_color = Some(bg_col);
@@ -701,8 +712,8 @@ pub fn handle(state: &mut AppState, action: Action) {
             }
             mask.last_paint_pos = Some((x, y));
         }
-        Action::MaskPaintEnd => {
-            let AppState { mode, decoded_rgba, axis_mask, data_mask, .. } = state;
+        Action::MaskPaintEnd(ctx) => {
+            let AppState { mode, decoded_rgba, axis_mask, data_mask, mask_tx, .. } = state;
             let mask = if *mode == AppMode::AxisMask {
                 axis_mask
             } else {
@@ -712,38 +723,62 @@ pub fn handle(state: &mut AppState, action: Action) {
             mask.last_paint_pos = None;
             mask.texture_dirty = true;
             mask.stroke_snapshot = Vec::new();
+
             if mask.has_any_mask() {
-                if let Some(ref rgba) = decoded_rgba {
+                if let (Some(ref rgba_arc), Some(tx)) = (decoded_rgba, mask_tx) {
+                    mask.compute_generation += 1;
+                    mask.is_computing = true;
+                    
                     let w = mask.width;
                     let h = mask.height;
                     let bg = mask.bg_color.unwrap_or([255, 255, 255]);
-                    match mask.mask_mode {
-                        crate::state::MaskMode::AxisCalib => {
-                            mask.axis_result = Some(
-                                crate::recognition::axis::analyze_mask_for_axes(
-                                    rgba, &mask.buffer, w, h, bg,
-                                ),
-                            );
-                            mask.data_result = None;
+                    let buffer_clone = mask.buffer.clone();
+                    let rgba_clone = std::sync::Arc::clone(rgba_arc);
+                    let mode_clone = mask.mask_mode;
+                    let color_tolerance = mask.color_tolerance;
+                    let generation = mask.compute_generation;
+                    let tx_clone = tx.clone();
+                    
+                    std::thread::spawn(move || {
+                        match mode_clone {
+                            crate::state::MaskMode::AxisCalib => {
+                                let result = crate::recognition::axis::analyze_mask_for_axes(
+                                    &rgba_clone, &buffer_clone, w, h, bg,
+                                );
+                                let _ = tx_clone.send(Action::ApplyAxisDetection(result, generation));
+                            }
+                            crate::state::MaskMode::DataRecog => {
+                                let result = crate::recognition::data::analyze_mask_for_data(
+                                    &rgba_clone, &buffer_clone, w, h, bg, color_tolerance,
+                                );
+                                let _ = tx_clone.send(Action::ApplyDataDetection(result, generation));
+                            }
                         }
-                        crate::state::MaskMode::DataRecog => {
-                            mask.data_result = Some(
-                                crate::recognition::data::analyze_mask_for_data(
-                                    rgba, &mask.buffer, w, h, bg,
-                                    mask.color_tolerance,
-                                ),
-                            );
-                            mask.axis_result = None;
-                        }
-                    }
+                        ctx.request_repaint();
+                    });
                 }
             } else {
                 mask.axis_result = None;
                 mask.data_result = None;
+                mask.is_computing = false;
+            }
+        }
+        Action::ApplyAxisDetection(result, gen) => {
+            if state.axis_mask.compute_generation == gen {
+                state.axis_mask.axis_result = Some(result);
+                state.axis_mask.data_result = None;
+                state.axis_mask.is_computing = false;
+            }
+        }
+        Action::ApplyDataDetection(result, gen) => {
+            if state.data_mask.compute_generation == gen {
+                state.data_mask.data_result = Some(result);
+                state.data_mask.axis_result = None;
+                state.data_mask.is_computing = false;
             }
         }
         Action::MaskSetColorTolerance(tol) => {
-            let AppState { mode, decoded_rgba, axis_mask, data_mask, .. } = state;
+            let AppState { mode, decoded_rgba, axis_mask, data_mask, mask_tx, .. } = state;
             let mask = if *mode == AppMode::AxisMask {
                 axis_mask
             } else {
@@ -751,15 +786,26 @@ pub fn handle(state: &mut AppState, action: Action) {
             };
             mask.color_tolerance = tol;
             if mask.has_any_mask() {
-                if let Some(ref rgba) = decoded_rgba {
+                if let (Some(ref rgba_arc), Some(tx)) = (decoded_rgba, mask_tx) {
+                    mask.compute_generation += 1;
+                    mask.is_computing = true;
+                    
                     let w = mask.width;
                     let h = mask.height;
                     let bg = mask.bg_color.unwrap_or([255, 255, 255]);
-                    mask.data_result = Some(
-                        crate::recognition::data::analyze_mask_for_data(
-                            rgba, &mask.buffer, w, h, bg, tol,
-                        ),
-                    );
+                    let buffer_clone = mask.buffer.clone();
+                    let rgba_clone = std::sync::Arc::clone(rgba_arc);
+                    let generation = mask.compute_generation;
+                    let tx_clone = tx.clone();
+                    
+                    std::thread::spawn(move || {
+                        let result = crate::recognition::data::analyze_mask_for_data(
+                            &rgba_clone, &buffer_clone, w, h, bg, tol,
+                        );
+                        let _ = tx_clone.send(Action::ApplyDataDetection(result, generation));
+                        // Since we don't have egui context here, we don't request repaint
+                        // It will repaint on mouse interactions anyway
+                    });
                 }
             }
         }

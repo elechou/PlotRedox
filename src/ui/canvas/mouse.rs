@@ -318,6 +318,6 @@ fn handle_mask_mouse(
     }
 
     if response.drag_stopped_by(egui::PointerButton::Primary) {
-        actions.push(Action::MaskPaintEnd);
+        actions.push(Action::MaskPaintEnd(ctx.clone()));
     }
 }

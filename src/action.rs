@@ -97,8 +97,10 @@ pub enum Action {
     MaskClear,
     MaskPaintStart,
     MaskPaintStroke { x: f32, y: f32 },
-    MaskPaintEnd,
+    MaskPaintEnd(eframe::egui::Context),
     MaskSetColorTolerance(f32),
+    ApplyAxisDetection(crate::state::AxisDetectionResult, u64),
+    ApplyDataDetection(crate::state::DataDetectionResult, u64),
 
     // Mask Axis Detection
     MaskSetAxisHighlight(Option<crate::state::AxisHighlight>),

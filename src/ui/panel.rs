@@ -161,7 +161,14 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 
                 let mask_active = state.data_mask.active 
                     && state.data_mask.mask_mode == crate::state::MaskMode::DataRecog;
-                let mut mask_btn = egui::Button::new("\u{1F17E} Auto-extract Data (Mask)");
+                
+                let btn_text = if state.data_mask.is_computing {
+                    "\u{23F3} Computing..."
+                } else {
+                    "\u{1F17E} Auto-extract Data (Mask)"
+                };
+
+                let mut mask_btn = egui::Button::new(btn_text);
                 if mask_active {
                     mask_btn = mask_btn.fill(Color32::from_rgb(50, 120, 180));
                 }

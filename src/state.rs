@@ -106,6 +106,11 @@ pub struct MaskState {
     /// Snapshot of the mask buffer at stroke start, used to detect which pixels
     /// are new during the current stroke (so only new pixels need rect rendering).
     pub stroke_snapshot: Vec<bool>,
+
+    /// Is a background thread currently computing the mask result?
+    pub is_computing: bool,
+    /// Generation counter to drop stale background thread results
+    pub compute_generation: u64,
 }
 
 impl Default for MaskState {
@@ -130,6 +135,8 @@ impl Default for MaskState {
             mask_texture: None,
             texture_dirty: false,
             stroke_snapshot: Vec::new(),
+            is_computing: false,
+            compute_generation: 0,
         }
     }
 }
@@ -324,7 +331,7 @@ pub struct AppState {
     pub clipboard_rgba: Option<(Vec<u8>, u32, u32)>, // For lazily encoding pasted images
     pub pending_image: Option<(PathBuf, TextureHandle, Vec2)>,
     /// Decoded RGBA pixel data (w * h * 4 bytes) for mask analysis
-    pub decoded_rgba: Option<Vec<u8>>,
+    pub decoded_rgba: Option<std::sync::Arc<Vec<u8>>>,
 
     // Viewport transform (Panning & Zooming)
     pub pan: Vec2,
@@ -385,6 +392,10 @@ pub struct AppState {
     // Mask State
     pub axis_mask: MaskState,
     pub data_mask: MaskState,
+
+    // Thread communication channel for async background detection
+    pub mask_rx: Option<std::sync::mpsc::Receiver<crate::action::Action>>,
+    pub mask_tx: Option<std::sync::mpsc::Sender<crate::action::Action>>,
 }
 
 #[derive(Clone)]
@@ -463,6 +474,8 @@ impl Default for AppState {
                 mask_mode: MaskMode::DataRecog,
                 ..Default::default()
             },
+            mask_rx: None,
+            mask_tx: None,
         }
     }
 }

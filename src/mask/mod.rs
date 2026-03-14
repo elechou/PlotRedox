@@ -237,12 +237,12 @@ pub fn draw_mask_highlights(
     // Axis highlight
     if let Some(ref axis_hl) = mask.highlight_axis {
         if let Some(ref result) = mask.axis_result {
-            let pixels = match axis_hl {
+            let pixels_ref = match axis_hl {
                 crate::state::AxisHighlight::X => &result.x_axis_pixels,
                 crate::state::AxisHighlight::Y => &result.y_axis_pixels,
             };
 
-            draw_pixel_set_real_color(painter, pixels, to_screen, rgba, mask.width);
+            draw_pixel_set_real_color(painter, pixels_ref, to_screen, rgba.map(|v| &**v), mask.width);
 
             // Draw ❌ crosses at tick positions
             let ticks = match axis_hl {
@@ -309,7 +309,7 @@ pub fn draw_mask_highlights(
                     painter,
                     &group.pixel_coords,
                     to_screen,
-                    rgba,
+                    rgba.map(|v| &**v),
                     mask.width,
                 );
 

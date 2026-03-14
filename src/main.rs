@@ -52,6 +52,14 @@ impl eframe::App for PlotRedoxApp {
         }
 
         let mut actions = Vec::new();
+
+        // Drain any async mask results
+        if let Some(rx) = &self.state.mask_rx {
+            while let Ok(action) = rx.try_recv() {
+                actions.push(action);
+            }
+        }
+
         ui::draw_ui(&mut self.state, ctx, &mut actions);
         for action in actions {
             match action {
