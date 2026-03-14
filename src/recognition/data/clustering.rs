@@ -1,13 +1,10 @@
 use crate::state::{DataCurveMode, DataDetectionResult, DetectedColorGroup};
 
-use super::is_bg_color;
-use super::sampling::sample_points_from_cluster;
+use super::super::pixels::{collect_masked_non_bg_pixels, color_distance_sq};
+use super::super::spatial::split_into_connected_components;
+use super::curve::sample_curve_points;
 
-// ────────────────────────────────────────────────────────────────
-//  Data Recognition: Color Clustering with Tolerance
-// ────────────────────────────────────────────────────────────────
-
-pub fn analyze_mask_for_data(
+pub(super) fn analyze_mask_for_data(
     rgba: &[u8],
     mask: &[bool],
     w: u32,
@@ -15,49 +12,25 @@ pub fn analyze_mask_for_data(
     bg_color: [u8; 3],
     tolerance: f32,
 ) -> DataDetectionResult {
-    let w_us = w as usize;
-    let h_us = h as usize;
-
-    // Step 1: Collect all non-background pixels in masked region
-    let mut pixel_colors: Vec<([u8; 3], u32, u32)> = Vec::new();
-
-    for y in 0..h_us {
-        for x in 0..w_us {
-            let idx = y * w_us + x;
-            if !mask[idx] {
-                continue;
-            }
-            let off = idx * 4;
-            if off + 2 >= rgba.len() {
-                continue;
-            }
-            let pixel = [rgba[off], rgba[off + 1], rgba[off + 2]];
-            if is_bg_color(pixel, bg_color) {
-                continue;
-            }
-            pixel_colors.push((pixel, x as u32, y as u32));
-        }
-    }
+    let pixel_colors = collect_masked_non_bg_pixels(rgba, mask, w, h, bg_color);
 
     if pixel_colors.is_empty() {
         return DataDetectionResult { groups: Vec::new() };
     }
 
-    // Step 2: Cluster using user-adjustable tolerance
     let mut centroids: Vec<[f32; 3]> = Vec::new();
     let mut cluster_pixels: Vec<Vec<(u32, u32)>> = Vec::new();
 
     for &(pixel, x, y) in &pixel_colors {
         let pf = [pixel[0] as f32, pixel[1] as f32, pixel[2] as f32];
 
-        // Find nearest centroid within tolerance
         let mut best_idx: Option<usize> = None;
         let mut best_dist = f32::MAX;
         for (i, centroid) in centroids.iter().enumerate() {
-            let dr = pf[0] - centroid[0];
-            let dg = pf[1] - centroid[1];
-            let db = pf[2] - centroid[2];
-            let dist = dr * dr + dg * dg + db * db;
+            let dist = color_distance_sq(
+                pixel,
+                [centroid[0] as u8, centroid[1] as u8, centroid[2] as u8],
+            );
             if dist < best_dist {
                 best_dist = dist;
                 best_idx = Some(i);
@@ -67,7 +40,6 @@ pub fn analyze_mask_for_data(
         let tol_sq = tolerance * tolerance * 3.0;
         if let Some(idx) = best_idx {
             if best_dist < tol_sq {
-                // Add to existing cluster
                 let n = cluster_pixels[idx].len() as f32;
                 centroids[idx][0] = (centroids[idx][0] * n + pf[0]) / (n + 1.0);
                 centroids[idx][1] = (centroids[idx][1] * n + pf[1]) / (n + 1.0);
@@ -83,11 +55,19 @@ pub fn analyze_mask_for_data(
         }
     }
 
-    // Step 3: Build groups from clusters (skip noise clusters < 5 pixels)
-    let mut groups: Vec<DetectedColorGroup> = Vec::new();
+    let mut groups = Vec::new();
 
     for (i, pixels) in cluster_pixels.into_iter().enumerate() {
         if pixels.len() < 5 {
+            continue;
+        }
+
+        let filtered_pixels: Vec<(u32, u32)> = split_into_connected_components(&pixels, 1)
+            .into_iter()
+            .filter(|component| component.len() >= 3)
+            .flatten()
+            .collect();
+        if filtered_pixels.len() < 5 {
             continue;
         }
 
@@ -97,11 +77,11 @@ pub fn analyze_mask_for_data(
             centroids[i][2] as u8,
         ];
 
-        let sampled = sample_points_from_cluster(&pixels, 10, w);
+        let sampled = sample_curve_points(&filtered_pixels, 10, w);
 
         groups.push(DetectedColorGroup {
             color: avg_color,
-            pixel_coords: pixels,
+            pixel_coords: filtered_pixels,
             curve_mode: DataCurveMode::Continuous,
             point_count: 10,
             sampled_points: sampled,
