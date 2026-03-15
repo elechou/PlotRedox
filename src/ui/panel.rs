@@ -32,11 +32,30 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                         format!(
                             "{} {} ({}/4)",
                             icons::ALERT,
-                            t(lang, "calibrate_4_points"),
+                            t(lang, "place_calib_points"),
                             state.calib_pts.len()
                         ),
                     );
                     ui.add_space(5.0);
+                }
+
+                {
+                    let filled = [&state.x1_val, &state.x2_val, &state.y1_val, &state.y2_val]
+                        .iter()
+                        .filter(|v| v.parse::<f64>().is_ok())
+                        .count();
+                    if filled < 4 {
+                        ui.colored_label(
+                            Color32::from_rgb(200, 150, 0),
+                            format!(
+                                "{} {} ({}/4)",
+                                icons::ALERT,
+                                t(lang, "enter_tick_values"),
+                                filled
+                            ),
+                        );
+                        ui.add_space(5.0);
+                    }
                 }
 
                 let magic_active = state.axis_mask.active

@@ -158,6 +158,8 @@ pub struct MaskState {
     pub is_computing: bool,
     /// Generation counter to drop stale background thread results
     pub compute_generation: u64,
+    /// Grid removal generation when the current results were computed
+    pub result_grid_gen: u64,
 }
 
 impl Default for MaskState {
@@ -188,6 +190,7 @@ impl Default for MaskState {
             stroke_snapshot: Vec::new(),
             is_computing: false,
             compute_generation: 0,
+            result_grid_gen: 0,
         }
     }
 }

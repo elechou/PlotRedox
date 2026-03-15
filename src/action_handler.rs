@@ -64,6 +64,7 @@ fn trigger_mask_redetection(state: &mut AppState) {
         if let (Some(rgba_arc), Some(tx)) = (rgba_src, &state.mask_tx) {
             mask.compute_generation += 1;
             mask.is_computing = true;
+            mask.result_grid_gen = state.grid_removal.compute_generation;
 
             let w = mask.width;
             let h = mask.height;
@@ -731,6 +732,14 @@ pub fn handle(state: &mut AppState, action: Action) {
 
                 // Keep AxisMask disabled when enabling DataMask
                 state.axis_mask.active = false;
+
+                // Re-trigger recognition if grid removal changed since last computation
+                if state.data_mask.has_any_mask()
+                    && state.data_mask.result_grid_gen
+                        != state.grid_removal.compute_generation
+                {
+                    trigger_mask_redetection(state);
+                }
             }
         }
         Action::MaskToggleForAxis => {
@@ -752,6 +761,14 @@ pub fn handle(state: &mut AppState, action: Action) {
 
                 // Keep DataMask disabled when enabling AxisMask
                 state.data_mask.active = false;
+
+                // Re-trigger recognition if grid removal changed since last computation
+                if state.axis_mask.has_any_mask()
+                    && state.axis_mask.result_grid_gen
+                        != state.grid_removal.compute_generation
+                {
+                    trigger_mask_redetection(state);
+                }
             }
         }
         Action::MaskFinishCalib => {
@@ -869,6 +886,7 @@ pub fn handle(state: &mut AppState, action: Action) {
                 if let (Some(rgba_arc), Some(tx)) = (rgba_src, mask_tx) {
                     mask.compute_generation += 1;
                     mask.is_computing = true;
+                    mask.result_grid_gen = grid_removal.compute_generation;
 
                     let w = mask.width;
                     let h = mask.height;
