@@ -483,6 +483,7 @@ pub enum PendingAction {
 }
 
 pub struct AppState {
+    pub lang: crate::i18n::Lang,
     pub mode: AppMode,
 
     // Image loading
@@ -605,6 +606,7 @@ impl Default for IdeState {
 impl Default for AppState {
     fn default() -> Self {
         Self {
+            lang: crate::i18n::Lang::default(),
             mode: AppMode::Select,
             image_path: None,
             texture: None,

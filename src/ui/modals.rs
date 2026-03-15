@@ -1,9 +1,12 @@
 use crate::action::Action;
+use crate::i18n::t;
 use crate::icons;
 use crate::state::AppState;
 use eframe::egui;
 
 pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
+    let lang = state.lang;
+
     // Unsaved-changes modal — shown when a destructive action is pending while dirty
     let mut do_save_then_proceed = false;
     let mut do_proceed_no_save = false;
@@ -11,11 +14,11 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
         let modal = egui::Modal::new(egui::Id::new("modal_unsaved")).show(ctx, |ui| {
             ui.set_width(380.0);
             ui.vertical_centered(|ui| {
-                ui.heading(format!("{} Unsaved Changes", icons::ALERT));
+                ui.heading(format!("{} {}", icons::ALERT, t(lang, "unsaved_changes")));
             });
             ui.add_space(8.0);
-            ui.label("Your project has unsaved changes.");
-            ui.label("Would you like to save before proceeding?");
+            ui.label(t(lang, "unsaved_msg"));
+            ui.label(t(lang, "save_before_proceed"));
             ui.add_space(10.0);
             ui.separator();
 
@@ -23,11 +26,11 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
                 ui,
                 |_ui| {},
                 |ui| {
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t(lang, "cancel")).clicked() {
                         ui.close();
                     }
                     let dont_save_btn = egui::Button::new(
-                        egui::RichText::new("Don't Save").color(egui::Color32::WHITE),
+                        egui::RichText::new(t(lang, "dont_save")).color(egui::Color32::WHITE),
                     )
                     .fill(egui::Color32::from_rgb(200, 50, 50));
                     if ui.add(dont_save_btn).clicked() {
@@ -35,7 +38,7 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
                         ui.close();
                     }
                     let save_btn =
-                        egui::Button::new(egui::RichText::new("Save").color(egui::Color32::WHITE))
+                        egui::Button::new(egui::RichText::new(t(lang, "save")).color(egui::Color32::WHITE))
                             .fill(egui::Color32::from_rgb(0, 150, 0));
                     if ui.add(save_btn).clicked() {
                         do_save_then_proceed = true;
@@ -63,11 +66,11 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
             let modal = egui::Modal::new(egui::Id::new("modal_load_image")).show(ctx, |ui| {
                 ui.set_width(350.0);
                 ui.vertical_centered(|ui| {
-                    ui.heading(format!("{} Warning", icons::ALERT));
+                    ui.heading(format!("{} {}", icons::ALERT, t(lang, "warning")));
                 });
                 ui.add_space(8.0);
-                ui.label("Loading a new image will clear your current workspace.");
-                ui.label("Are you sure you want to proceed?");
+                ui.label(t(lang, "load_image_warning"));
+                ui.label(t(lang, "confirm_proceed"));
                 ui.add_space(10.0);
                 ui.separator();
 
@@ -75,11 +78,11 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
                     ui,
                     |_ui| {},
                     |ui| {
-                        if ui.button("Cancel").clicked() {
+                        if ui.button(t(lang, "cancel")).clicked() {
                             ui.close();
                         }
                         let confirm_btn = egui::Button::new(
-                            egui::RichText::new("Confirm").color(egui::Color32::WHITE),
+                            egui::RichText::new(t(lang, "confirm")).color(egui::Color32::WHITE),
                         )
                         .fill(egui::Color32::from_rgb(200, 50, 50));
                         if ui.add(confirm_btn).clicked() {
@@ -104,11 +107,11 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
         let modal = egui::Modal::new(egui::Id::new("modal_clear_data")).show(ctx, |ui| {
             ui.set_width(350.0);
             ui.vertical_centered(|ui| {
-                ui.heading(format!("{} Clear Data", icons::ALERT));
+                ui.heading(format!("{} {}", icons::ALERT, t(lang, "clear_data_title")));
             });
             ui.add_space(8.0);
-            ui.label("Are you sure you want to clear all extracted data points?");
-            ui.label("This action cannot be undone.");
+            ui.label(t(lang, "clear_data_msg"));
+            ui.label(t(lang, "cannot_undo"));
             ui.add_space(10.0);
             ui.separator();
 
@@ -116,11 +119,11 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
                 ui,
                 |_ui| {},
                 |ui| {
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t(lang, "cancel")).clicked() {
                         ui.close();
                     }
                     let confirm_btn = egui::Button::new(
-                        egui::RichText::new("Confirm").color(egui::Color32::WHITE),
+                        egui::RichText::new(t(lang, "confirm")).color(egui::Color32::WHITE),
                     )
                     .fill(egui::Color32::from_rgb(200, 50, 50));
                     if ui.add(confirm_btn).clicked() {
@@ -139,15 +142,15 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
         let modal = egui::Modal::new(egui::Id::new("modal_clipboard_empty")).show(ctx, |ui| {
             ui.set_width(320.0);
             ui.vertical_centered(|ui| {
-                ui.heading(format!("{} No Image Found", icons::INFO));
+                ui.heading(format!("{} {}", icons::INFO, t(lang, "no_image_found")));
             });
             ui.add_space(8.0);
-            ui.label("No image was found in the clipboard.");
-            ui.label("Please copy an image first, then try again.");
+            ui.label(t(lang, "clipboard_empty_msg"));
+            ui.label(t(lang, "clipboard_copy_first"));
             ui.add_space(10.0);
             ui.separator();
             ui.vertical_centered(|ui| {
-                if ui.button("OK").clicked() {
+                if ui.button(t(lang, "ok")).clicked() {
                     ui.close();
                 }
             });
@@ -165,19 +168,20 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
                 ui.add_space(8.0);
                 ui.heading("PlotRedox");
                 ui.add_space(4.0);
-                ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
+                ui.label(format!("{} {}", t(lang, "version"), env!("CARGO_PKG_VERSION")));
                 ui.add_space(8.0);
             });
             ui.label(env!("CARGO_PKG_DESCRIPTION"));
             ui.add_space(8.0);
-            ui.label("Authors: Qiu Shou");
-            ui.label("License: MIT");
+            ui.label(t(lang, "authors"));
+            ui.label(t(lang, "license"));
+            ui.label(t(lang, "font_license"));
             ui.add_space(4.0);
             ui.hyperlink_to("GitHub Repository", "https://github.com/elechou/PlotOxide");
             ui.add_space(10.0);
             ui.separator();
             ui.vertical_centered(|ui| {
-                if ui.button("OK").clicked() {
+                if ui.button(t(lang, "ok")).clicked() {
                     ui.close();
                 }
             });

@@ -1,4 +1,5 @@
 use crate::action::Action;
+use crate::i18n::t;
 use crate::icons;
 use crate::state::{AppMode, AppState};
 use eframe::egui;
@@ -9,6 +10,7 @@ pub fn draw_toolbar(
     canvas_rect: egui::Rect,
     actions: &mut Vec<Action>,
 ) {
+    let lang = state.lang;
     let window = egui::Window::new("CAD Toolbar")
         .collapsible(false)
         .resizable(false)
@@ -20,9 +22,9 @@ pub fn draw_toolbar(
             if ui
                 .selectable_label(
                     state.mode == AppMode::Select,
-                    format!("{} Select", icons::CURSOR_DEFAULT),
+                    format!("{} {}", icons::CURSOR_DEFAULT, t(lang, "select")),
                 )
-                .on_hover_text("Select & Drag")
+                .on_hover_text(t(lang, "hover_select_drag"))
                 .clicked()
             {
                 actions.push(Action::SetMode(AppMode::Select));
@@ -31,9 +33,9 @@ pub fn draw_toolbar(
             if ui
                 .selectable_label(
                     state.mode == AppMode::AddData,
-                    format!("{} Add Data", icons::PLUS),
+                    format!("{} {}", icons::PLUS, t(lang, "add_data")),
                 )
-                .on_hover_text("Pick new points")
+                .on_hover_text(t(lang, "hover_pick_points"))
                 .clicked()
             {
                 actions.push(Action::SetMode(AppMode::AddData));
@@ -42,9 +44,9 @@ pub fn draw_toolbar(
             if ui
                 .selectable_label(
                     state.mode == AppMode::Delete,
-                    format!("{} Delete", icons::MINUS),
+                    format!("{} {}", icons::MINUS, t(lang, "delete")),
                 )
-                .on_hover_text("Click points to delete them")
+                .on_hover_text(t(lang, "hover_delete_points"))
                 .clicked()
             {
                 actions.push(Action::SetMode(AppMode::Delete));
@@ -55,9 +57,9 @@ pub fn draw_toolbar(
             if ui
                 .selectable_label(
                     magic_active,
-                    format!("{} Axis Brush", icons::AXIS_BRUSH),
+                    format!("{} {}", icons::AXIS_BRUSH, t(lang, "axis_brush")),
                 )
-                .on_hover_text("Auto-detect axes by painting a mask")
+                .on_hover_text(t(lang, "hover_axis_mask"))
                 .clicked()
             {
                 actions.push(Action::MaskToggleForAxis);
@@ -68,11 +70,9 @@ pub fn draw_toolbar(
             if ui
                 .selectable_label(
                     mask_active,
-                    format!("{} Data Brush", icons::DATA_BRUSH),
+                    format!("{} {}", icons::DATA_BRUSH, t(lang, "data_brush")),
                 )
-                .on_hover_text(
-                    "Auto-extract data points using color recognition via a painted mask",
-                )
+                .on_hover_text(t(lang, "hover_data_mask"))
                 .clicked()
             {
                 actions.push(Action::MaskToggle);
@@ -82,9 +82,9 @@ pub fn draw_toolbar(
             if ui
                 .selectable_label(
                     grid_active,
-                    format!("{} Grid", icons::GRID),
+                    format!("{} {}", icons::GRID, t(lang, "grid")),
                 )
-                .on_hover_text("Remove grid lines from image using FFT filtering")
+                .on_hover_text(t(lang, "hover_grid_removal"))
                 .clicked()
             {
                 actions.push(Action::GridRemovalToggle);
@@ -94,16 +94,16 @@ pub fn draw_toolbar(
             if ui
                 .selectable_label(
                     state.mode == AppMode::Pan || is_space_pressed,
-                    format!("{} Pan", icons::HAND),
+                    format!("{} {}", icons::HAND, t(lang, "pan")),
                 )
-                .on_hover_text("Left-click and drag to pan canvas (or hold Space)")
+                .on_hover_text(t(lang, "hover_pan"))
                 .clicked()
             {
                 actions.push(Action::SetMode(AppMode::Pan));
             }
             if ui
-                .button(format!("{} Center", icons::FIT_SCREEN))
-                .on_hover_text("Center canvas to fit window")
+                .button(format!("{} {}", icons::FIT_SCREEN, t(lang, "center")))
+                .on_hover_text(t(lang, "hover_center"))
                 .clicked()
             {
                 actions.push(Action::CenterCanvas(canvas_rect));

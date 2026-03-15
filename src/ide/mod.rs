@@ -5,6 +5,7 @@ pub mod presets;
 pub mod workspace;
 
 use crate::action::Action;
+use crate::i18n::t;
 use crate::icons;
 use crate::state::AppState;
 use eframe::egui;
@@ -13,6 +14,8 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
     if !state.ide.is_open {
         return;
     }
+
+    let lang = state.lang;
 
     // Windows for table inspectors
     inspector::draw_inspectors(state, ctx, actions);
@@ -27,7 +30,7 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
         .show(ctx, |ui| {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                ui.strong("Script IDE");
+                ui.strong(t(lang, "script_ide"));
 
                 // Presets dropdown + Export (right-aligned, appear left of heading)
                 presets::draw_presets(state, ui, actions);
@@ -36,7 +39,7 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
 
                 // ▶ Run Script (green triangle)
                 let run_btn = egui::Button::new(
-                    egui::RichText::new(format!("{} Run Script", icons::PLAY))
+                    egui::RichText::new(format!("{} {}", icons::PLAY, t(lang, "run_script")))
                         .color(egui::Color32::from_rgb(0x4E, 0xC9, 0x4E))
                         .strong(),
                 )
@@ -45,10 +48,9 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
                     actions.push(Action::RunScript(state.ide.code.clone()));
                 }
 
-                // Right-aligned: Help, then Script IDE heading, then presets/export
+                // Right-aligned: Help
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Rightmost: Help
-                    if ui.button(format!("{} Help", icons::HELP_CIRCLE)).clicked() {
+                    if ui.button(format!("{} {}", icons::HELP_CIRCLE, t(lang, "help"))).clicked() {
                         actions.push(Action::ToggleHelp);
                     }
                 });
@@ -102,7 +104,6 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
 
                 if handle_resp.dragged() {
                     let delta = handle_resp.drag_delta().x;
-                    // dragged right => editor bigger, output smaller => fraction smaller
                     fraction -= delta / content_width;
                     fraction = fraction.clamp(0.2, 0.8);
                     state.ide.output_fraction = fraction;
@@ -114,7 +115,7 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
                         egui::Frame::NONE.show(ui, |ui| {
-                            ui.strong("Output");
+                            ui.strong(t(lang, "output"));
                             ui.add_space(4.0);
                             egui::ScrollArea::vertical()
                                 .id_salt("ide_output_scroll")
@@ -123,7 +124,7 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
                                     let mut safe_out = state.ide.output.clone();
                                     if safe_out.len() > 5000 {
                                         safe_out.truncate(5000);
-                                        safe_out.push_str("\n... (Output truncated)");
+                                        safe_out.push_str(t(lang, "output_truncated"));
                                     }
                                     ui.add(
                                         egui::Label::new(

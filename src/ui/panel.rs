@@ -5,10 +5,12 @@ use std::fs::File;
 use std::io::Write;
 
 use crate::action::Action;
+use crate::i18n::t;
 use crate::icons;
 use crate::state::{AppMode, AppState};
 
 pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
+    let lang = state.lang;
     egui::SidePanel::left("left_panel")
         .resizable(false)
         .exact_width(300.0)
@@ -19,19 +21,18 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
             ui.set_min_width(ui.available_width());
 
             ui.add_enabled_ui(state.texture.is_some(), |ui| {
-                // Unified card style
-
                 // Section 1: Calibration
 
-                ui.strong("1. Axes Calibration");
+                ui.strong(t(lang, "axes_calibration"));
                 ui.add_space(10.0);
 
                 if state.calib_pts.len() < 4 {
                     ui.colored_label(
                         Color32::RED,
                         format!(
-                            "{} Calibrate 4 axes points first ({}/4)",
+                            "{} {} ({}/4)",
                             icons::ALERT,
+                            t(lang, "calibrate_4_points"),
                             state.calib_pts.len()
                         ),
                     );
@@ -45,10 +46,10 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                     .add_sized(
                         [ui.available_width(), 24.0],
                         egui::Button::new(
-                            egui::RichText::new(format!("{}  Smart Axis Brush", icons::AXIS_BRUSH)).strong()
+                            egui::RichText::new(format!("{}  {}", icons::AXIS_BRUSH, t(lang, "smart_axis_brush"))).strong()
                                 ).selected(magic_active),
                     )
-                    .on_hover_text("Auto-detect axes by painting a mask")
+                    .on_hover_text(t(lang, "hover_axis_mask"))
                     .clicked()
                 {
                     actions.push(Action::MaskToggleForAxis);
@@ -58,9 +59,9 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
 
                 ui.horizontal(|ui| {
                     let btn_text = if state.mode == AppMode::AddCalib {
-                        "Stop"
+                        t(lang, "stop")
                     } else {
-                        "Manually Place Axes Points"
+                        t(lang, "manually_place_axes")
                     };
                     let mut btn = egui::Button::new(btn_text);
                     if state.mode == AppMode::AddCalib {
@@ -75,7 +76,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                         }));
                     }
 
-                    let clear_btn = egui::Button::new("Clear Axes Points");
+                    let clear_btn = egui::Button::new(t(lang, "clear_axes"));
                     if ui.add_sized([100.0, 20.0], clear_btn).clicked() {
                         actions.push(Action::ClearCalib);
                     }
@@ -146,11 +147,11 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     let mut log_x = state.log_x;
-                    if ui.checkbox(&mut log_x, "Log X").changed() {
+                    if ui.checkbox(&mut log_x, t(lang, "log_x")).changed() {
                         actions.push(Action::UpdateLogScale(log_x, state.log_y));
                     }
                     let mut log_y = state.log_y;
-                    if ui.checkbox(&mut log_y, "Log Y").changed() {
+                    if ui.checkbox(&mut log_y, t(lang, "log_y")).changed() {
                         actions.push(Action::UpdateLogScale(state.log_x, log_y));
                     }
                 });
@@ -162,10 +163,10 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 ui.add_space(15.0);
 
                 // Section 2: Extraction
-                ui.strong("2. Data Extraction");
+                ui.strong(t(lang, "data_extraction"));
                 ui.add_space(10.0);
 
-                ui.label(format!("Total Datapoints: {}", state.data_pts.len()));
+                ui.label(format!("{}: {}", t(lang, "total_datapoints"), state.data_pts.len()));
 
                 ui.add_space(5.0);
 
@@ -176,12 +177,10 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                     .add_sized(
                         [ui.available_width(), 24.0],
                         egui::Button::new(
-                            egui::RichText::new(format!("{}  Smart Data Brush", icons::DATA_BRUSH)).strong()
+                            egui::RichText::new(format!("{}  {}", icons::DATA_BRUSH, t(lang, "smart_data_brush"))).strong()
                             ).selected(mask_active),
                     )
-                    .on_hover_text(
-                        "Auto-extract data points using color recognition via a painted mask",
-                    )
+                    .on_hover_text(t(lang, "hover_data_mask"))
                     .clicked()
                 {
                     actions.push(Action::MaskToggle);
@@ -199,21 +198,21 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
 
                 ui.horizontal(|ui| {
                     if ui
-                        .add_sized([90.0, 20.0], egui::Button::new(format!("{} Add Group", icons::ADD_GROUP)))
+                        .add_sized([90.0, 20.0], egui::Button::new(format!("{} {}", icons::ADD_GROUP, t(lang, "add_group"))))
                         .clicked()
                     {
                         actions.push(Action::AddGroup);
                     }
 
                     if ui
-                        .add_sized([90.0, 20.0], egui::Button::new("Clear All Data"))
+                        .add_sized([90.0, 20.0], egui::Button::new(t(lang, "clear_all_data")))
                         .clicked()
                     {
                         actions.push(Action::RequestClearData);
                     }
 
                     if ui
-                        .add_sized([87.0, 20.0], egui::Button::new("Export CSV"))
+                        .add_sized([87.0, 20.0], egui::Button::new(t(lang, "export_csv_btn")))
                         .clicked()
                     {
                         actions.push(Action::RequestExportCsv);
@@ -246,9 +245,9 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                         if ui
                                             .button(collapse_icon)
                                             .on_hover_text(if is_collapsed {
-                                                "Expand"
+                                                t(lang, "expand")
                                             } else {
-                                                "Collapse"
+                                                t(lang, "collapse")
                                             })
                                             .clicked()
                                         {
@@ -263,7 +262,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                         let radio_icon = if is_active { icons::RADIO_ON } else { icons::RADIO_OFF };
                                         if ui
                                             .selectable_label(is_active, radio_icon)
-                                            .on_hover_text("Set Active Group")
+                                            .on_hover_text(t(lang, "set_active_group"))
                                             .clicked()
                                         {
                                             actions.push(Action::SetActiveGroup(g_idx));
@@ -294,7 +293,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                             |ui| {
                                                 if ui
                                                     .button(icons::TRASH)
-                                                    .on_hover_text("Delete Group")
+                                                    .on_hover_text(t(lang, "delete_group"))
                                                     .clicked()
                                                 {
                                                     actions.push(Action::DeleteGroup(g_idx));
@@ -305,7 +304,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                                     .iter()
                                                     .filter(|p| p.group_id == g_idx)
                                                     .count();
-                                                ui.label(format!("({} pts)", count));
+                                                ui.label(format!("({} {})", count, t(lang, "pts")));
                                             },
                                         );
                                     });
@@ -352,7 +351,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
 
                                     let mut bg_color = Color32::TRANSPARENT;
                                     if is_selected {
-                                        bg_color = group.color.linear_multiply(0.2); // Soft highlight background
+                                        bg_color = group.color.linear_multiply(0.2);
                                         text_x = text_x.color(group.color).strong();
                                         text_y = text_y.color(group.color).strong();
                                     } else if is_hovered {
@@ -407,9 +406,10 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                                                             ui.label(
                                                                             egui::RichText::new(
                                                                                 format!(
-                                                                                    "{} points",
+                                                                                    "{} {}",
                                                                                     drag_payload
-                                                                                        .len()
+                                                                                        .len(),
+                                                                                    t(lang, "points"),
                                                                                 ),
                                                                             )
                                                                             .color(group.color)
@@ -511,7 +511,6 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                                         egui::Align::Center,
                                                     ),
                                                     |ui| {
-                                                        // Disable dragging for the trash bin so it's clickable reliably
                                                         if ui
                                                             .add_sized(
                                                                 [trash_width, 20.0],
@@ -531,11 +530,9 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
 
                                 if !has_points {
                                     ui.label(
-                                        egui::RichText::new(
-                                            "   (Drag points here or click canvas to add)",
-                                        )
-                                        .color(Color32::DARK_GRAY)
-                                        .small(),
+                                        egui::RichText::new(t(lang, "drag_hint"))
+                                            .color(Color32::DARK_GRAY)
+                                            .small(),
                                     );
                                 }
                             } // end if !is_collapsed

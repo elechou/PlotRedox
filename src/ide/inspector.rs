@@ -1,10 +1,12 @@
 use crate::action::Action;
+use crate::i18n::t;
 use crate::state::{AppState, InspectorEntry};
 use eframe::egui;
 use rhai::{Array, Dynamic, Map};
 
 /// Draw inspector windows for all open variables.
 pub fn draw_inspectors(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
+    let lang = state.lang;
     // Snapshot entries to iterate (we'll collect mutations separately)
     let entries: Vec<InspectorEntry> = state.ide.open_inspectors.clone();
     let mut new_entries: Vec<InspectorEntry> = Vec::new();
@@ -34,14 +36,14 @@ pub fn draw_inspectors(state: &mut AppState, ctx: &egui::Context, actions: &mut 
         let entry_key = entry.key.clone();
         let mut pending: Vec<InspectorEntry> = Vec::new();
 
-        egui::Window::new(format!("Inspector: {}", entry.label))
+        egui::Window::new(format!("{}: {}", t(lang, "inspector"), entry.label))
             .id(egui::Id::new(&entry.key))
             .open(&mut is_open)
             .default_size([200.0, 250.0])
             .resizable(true)
             .vscroll(false)
             .show(ctx, |ui| {
-                draw_value_inspector(ui, &val, &entry_key, &mut pending);
+                draw_value_inspector(ui, &val, &entry_key, &mut pending, lang);
             });
 
         if !is_open {
@@ -65,23 +67,24 @@ fn draw_value_inspector(
     val: &Dynamic,
     path: &str,
     pending: &mut Vec<InspectorEntry>,
+    lang: crate::i18n::Lang,
 ) {
     if val.is_array() {
         let arr = val.clone().try_cast::<Array>().unwrap_or_default();
         if arr.is_empty() {
-            ui.label("Empty array");
+            ui.label(t(lang, "empty_array"));
             return;
         }
 
         // Check if it's an array of maps (table-like)
         if arr[0].is_map() {
-            draw_array_of_maps_table(ui, &arr, path, pending);
+            draw_array_of_maps_table(ui, &arr, path, pending, lang);
         } else {
-            draw_scalar_array_table(ui, &arr, path, pending);
+            draw_scalar_array_table(ui, &arr, path, pending, lang);
         }
     } else if val.is_map() {
         let map = val.clone().try_cast::<Map>().unwrap_or_default();
-        draw_map_table(ui, &map, path, pending);
+        draw_map_table(ui, &map, path, pending, lang);
     } else {
         // Scalar value — just show it
         ui.heading(format!("{}", val));
@@ -116,6 +119,7 @@ fn draw_array_of_maps_table(
     arr: &[Dynamic],
     path: &str,
     pending: &mut Vec<InspectorEntry>,
+    lang: crate::i18n::Lang,
 ) {
     use egui_extras::{Column, TableBuilder};
 
@@ -151,7 +155,7 @@ fn draw_array_of_maps_table(
     builder
         .header(20.0, |mut header| {
             header.col(|ui| {
-                ui.strong("idx");
+                ui.strong(t(lang, "idx"));
             });
             for name in &col_names {
                 header.col(|ui| {
@@ -189,6 +193,7 @@ fn draw_scalar_array_table(
     arr: &[Dynamic],
     path: &str,
     pending: &mut Vec<InspectorEntry>,
+    lang: crate::i18n::Lang,
 ) {
     use egui_extras::{Column, TableBuilder};
 
@@ -206,10 +211,10 @@ fn draw_scalar_array_table(
         .column(Column::remainder().at_least(60.0))
         .header(20.0, |mut header| {
             header.col(|ui| {
-                ui.strong("idx");
+                ui.strong(t(lang, "idx"));
             });
             header.col(|ui| {
-                ui.strong("value");
+                ui.strong(t(lang, "value"));
             });
         })
         .body(|body| {
@@ -237,6 +242,7 @@ fn draw_map_table(
     map: &rhai::Map,
     path: &str,
     pending: &mut Vec<InspectorEntry>,
+    lang: crate::i18n::Lang,
 ) {
     use egui_extras::{Column, TableBuilder};
 
@@ -260,10 +266,10 @@ fn draw_map_table(
         .column(Column::remainder().at_least(60.0))
         .header(20.0, |mut header| {
             header.col(|ui| {
-                ui.strong("key");
+                ui.strong(t(lang, "key"));
             });
             header.col(|ui| {
-                ui.strong("value");
+                ui.strong(t(lang, "value"));
             });
         })
         .body(|body| {

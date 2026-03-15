@@ -1182,5 +1182,11 @@ pub fn handle(state: &mut AppState, action: Action) {
                 }
             }
         }
+        Action::ToggleLang => {
+            state.lang = match state.lang {
+                crate::i18n::Lang::En => crate::i18n::Lang::Zh,
+                crate::i18n::Lang::Zh => crate::i18n::Lang::En,
+            };
+        }
     }
 }

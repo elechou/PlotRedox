@@ -1,10 +1,12 @@
+use crate::i18n::{t, Lang};
 use crate::ide::editor::EIGHTIES_SETTINGS;
 use crate::state::AppState;
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 
 /// The embedded scripting help markdown (compiled into the binary).
-const HELP_MD: &str = include_str!("../../docs/scripting_help.md");
+const HELP_MD_EN: &str = include_str!("../../docs/scripting_help.md");
+const HELP_MD_ZH: &str = include_str!("../../docs/scripting_help_zh.md");
 
 /// Draw the floating help window if `state.ide.show_help` is true.
 pub fn draw_help_window(state: &mut AppState, ctx: &egui::Context) {
@@ -12,15 +14,21 @@ pub fn draw_help_window(state: &mut AppState, ctx: &egui::Context) {
         return;
     }
 
+    let lang = state.lang;
+    let help_md = match lang {
+        Lang::Zh => HELP_MD_ZH,
+        Lang::En => HELP_MD_EN,
+    };
+
     let mut open = state.ide.show_help;
-    egui::Window::new("Scripting Reference")
+    egui::Window::new(t(lang, "scripting_reference"))
         .open(&mut open)
         .default_width(830.0)
         .default_height(500.0)
         .vscroll(true)
         .resizable(true)
         .show(ctx, |ui| {
-            render_help_markdown(ui, HELP_MD);
+            render_help_markdown(ui, help_md);
         });
     state.ide.show_help = open;
 }

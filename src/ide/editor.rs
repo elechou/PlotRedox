@@ -1,4 +1,5 @@
 use crate::action::Action;
+use crate::i18n::t;
 use crate::state::AppState;
 use eframe::egui::{self, Color32};
 use std::sync::LazyLock;
@@ -16,6 +17,7 @@ pub(crate) static EIGHTIES_SETTINGS: LazyLock<egui_extras::syntax_highlighting::
     });
 
 pub fn draw_editor(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+    let lang = state.lang;
     // Small left margin to prevent scrollbar / panel-resize-handle conflict
     egui::Frame::NONE
         .inner_margin(egui::Margin {
@@ -25,7 +27,7 @@ pub fn draw_editor(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<Ac
             bottom: 6,
         })
         .show(ui, |ui| {
-            ui.strong("Code Editor");
+            ui.strong(t(lang, "code_editor"));
             ui.add_space(4.0);
 
             let mut code = state.ide.code.clone();

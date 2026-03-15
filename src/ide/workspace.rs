@@ -1,18 +1,20 @@
 use crate::action::Action;
+use crate::i18n::t;
 use crate::state::AppState;
 use eframe::egui::{self, Color32, RichText};
 
 pub fn draw_workspace(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+    let lang = state.lang;
     egui::SidePanel::left("ide_workspace")
         .resizable(false)
         .exact_width(180.0)
         .show_inside(ui, |ui| {
-            ui.strong("Workspace");
+            ui.strong(t(lang, "workspace"));
             ui.add_space(4.0);
 
             if state.ide.workspace_vars.is_empty() {
                 ui.label(
-                    RichText::new("Run a script to populate variables")
+                    RichText::new(t(lang, "run_script_populate"))
                         .italics()
                         .color(Color32::GRAY),
                 );

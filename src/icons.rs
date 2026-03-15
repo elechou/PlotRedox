@@ -41,5 +41,8 @@ pub const HELP_CIRCLE: &str = "\u{f0625}"; // 󰘥 help_circle
 pub const ALERT: &str = "\u{f421}"; //  alert
 pub const INFO: &str = "\u{f449}"; //  information
 
+// Language
+pub const LANGUAGE: &str = "\u{f1ab}"; //  language
+
 // Files
 pub const FILE: &str = "\u{f15b}"; //  file

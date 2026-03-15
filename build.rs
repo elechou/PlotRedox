@@ -1,5 +1,6 @@
-// build.rs — Auto-discover example scripts in `example_scripts/` and generate
-// a Rust source file that embeds them at compile time.
+// build.rs — Auto-discover example scripts and subset CJK font at compile time.
+
+mod build_font_subset;
 
 use std::fs;
 use std::io::Write;
@@ -13,8 +14,17 @@ fn main() {
         res.compile().unwrap();
     }
 
-    let script_dir = Path::new("example_scripts");
     let out_dir = std::env::var("OUT_DIR").unwrap();
+
+    // ── Font subsetting ──
+    // Re-run when any file containing CJK text changes
+    println!("cargo:rerun-if-changed=src/i18n.rs");
+    println!("cargo:rerun-if-changed=docs/scripting_help_zh.md");
+    println!("cargo:rerun-if-changed=assets/fonts/SarasaUiSC-Regular.ttf");
+    build_font_subset::generate_subset_font(&out_dir);
+
+    // ── Example scripts embedding ──
+    let script_dir = Path::new("example_scripts");
     let dest = Path::new(&out_dir).join("embedded_scripts.rs");
 
     // Tell Cargo to re-run this if the directory or any file in it changes

@@ -3,6 +3,7 @@
 pub mod action;
 mod action_handler;
 mod core;
+pub mod i18n;
 pub mod icons;
 mod ide;
 mod project;
@@ -36,12 +37,31 @@ impl PlotRedoxApp {
                 "../assets/SymbolsNerdFontMono-Regular.ttf"
             ))),
         );
+        // Load Sarasa UI SC (subset) for Chinese character support
+        fonts.font_data.insert(
+            "sarasa_ui_sc".to_owned(),
+            std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+                concat!(env!("OUT_DIR"), "/SarasaUiSC-Regular-subset.ttf")
+            ))),
+        );
+
         // Add as fallback to both Proportional and Monospace families
+        // Order: default → maple_mono_cn → nerd_symbols
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Proportional)
+            .unwrap()
+            .push("sarasa_ui_sc".to_owned());
         fonts
             .families
             .get_mut(&egui::FontFamily::Proportional)
             .unwrap()
             .push("nerd_symbols".to_owned());
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Monospace)
+            .unwrap()
+            .push("sarasa_ui_sc".to_owned());
         fonts
             .families
             .get_mut(&egui::FontFamily::Monospace)
@@ -125,7 +145,9 @@ impl eframe::App for PlotRedoxApp {
                     if self.state.dirty {
                         self.state.pending_action = Some(state::PendingAction::NewProject);
                     } else {
+                        let lang = self.state.lang;
                         self.state = AppState::default();
+                        self.state.lang = lang;
                     }
                 }
                 other => {

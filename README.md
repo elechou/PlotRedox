@@ -1,8 +1,8 @@
 # PlotRedox
 
-A native, high-performance plot digitizer built with **Rust** and **egui**. Load an image of a chart or plot, calibrate the axes, click on data points, and export the extracted coordinates to CSV — with **computer-vision-assisted recognition** and a built-in **scripting IDE** for on-the-fly data analysis.
+A native, high-performance chart data extraction tool built with **Rust** and **egui**. Load an image of a chart or plot, calibrate the axes, click on data points, and export the extracted coordinates to CSV — with **computer-vision-assisted recognition** and a built-in **scripting IDE** for on-the-fly data analysis.
 
-An open source alternative to GetData Graph Digitizer, WebPlotDigitizer, PlotDigitizer.
+A free and open-source alternative to [WebPlotDigitizer](https://github.com/automeris-io/WebPlotDigitizer).
 
 ![PlotRedox Screenshot](screenshot.png)
 
@@ -40,7 +40,11 @@ Automatically detect axes and data points using mask-based computer vision, elim
 4. For each detected color group, choose between **Continuous** (curve sampling) or **Scatter** (point detection) mode
 5. Adjust the number of sampled points and preview before adding to your dataset
 
-Both recognition modes run on background threads to keep the UI responsive. Mask painting supports Shift+Click for straight lines and constrained-axis painting (horizontal/vertical lock).
+#### Grid Removal
+- Automatically detect and remove grid lines from the plot image to improve data recognition accuracy
+- Accessible from the canvas toolbar sub-menu
+
+All recognition modes run on background threads to keep the UI responsive. Mask painting supports Shift+Click for straight lines and constrained-axis painting (horizontal/vertical lock).
 
 ### Script IDE
 - Built-in live scripting IDE powered by [Rhai](https://rhai.rs/) (Rust-embedded scripting language)
@@ -119,7 +123,7 @@ Open the application and load a plot image:
 - **Paste** from clipboard (`Ctrl+V` / `Cmd+V` or click "Paste Image")
 - Drag and drop an image file onto the window
 
-A sample image (`sample_plot.png`) is included for testing.
+Sample images (`sample_plot_1.png`, `sample_plot_2.png`) and a sample project (`sample_plot.prdx`) are included for testing.
 
 ### Step 2 – Calibrate the axes
 
@@ -205,60 +209,27 @@ The build system (`build.rs`) automatically scans the `example_scripts/` directo
 PlotRedox/
 ├── src/
 │   ├── main.rs              # Application entry point & eframe lifecycle
-│   ├── action.rs            # Action enum definitions for all state-changing events
+│   ├── action.rs            # Action enum definitions
 │   ├── action_handler.rs    # Core dispatch logic (Action → State mutation)
 │   ├── core.rs              # Calibration math and coordinate mapping
-│   ├── state.rs             # Runtime state & serializable project data structures
+│   ├── state.rs             # Runtime state & serializable project data
 │   ├── project.rs           # Project save/load (.prdx ZIP format)
-│   ├── ui/
-│   │   ├── mod.rs           # UI root & orchestration
-│   │   ├── top_panel.rs     # Menu bar & quick-access toolbar
-│   │   ├── modals.rs        # Modal dialogs (save confirmation, etc.)
-│   │   ├── panel.rs         # Left sidebar (calibration, groups, data)
-│   │   ├── toolbar.rs       # Canvas mode toolbar (Select, Add, Pan, Mask...)
-│   │   └── canvas/
-│   │       ├── mod.rs       # Image viewport rendering & overlays
-│   │       ├── mouse.rs     # Mouse interaction (drag, click, hover)
-│   │       └── keyboard.rs  # Keyboard shortcuts (nudge, delete)
-│   ├── ide/
-│   │   ├── mod.rs           # IDE panel layout
-│   │   ├── editor.rs        # Code editor with syntax highlighting
-│   │   ├── workspace.rs     # Variable inspector panel
-│   │   ├── inspector.rs     # Data table viewer
-│   │   ├── presets.rs       # Script templates and import/export
-│   │   └── help.rs          # Built-in scripting reference
-│   ├── script/
-│   │   ├── mod.rs           # Rhai engine setup and data binding
-│   │   └── math.rs          # Math and regression functions
-│   └── recognition/
-│       ├── mod.rs           # Module exports
-│       ├── pixels.rs        # Background color detection
-│       ├── spatial.rs       # Spatial utilities
-│       ├── geometry.rs      # Geometric primitives
-│       ├── axis/
-│       │   ├── mod.rs       # Axis detection algorithm
-│       │   ├── line.rs      # Directional line fitting
-│       │   ├── preprocess.rs # Morphological operations (dilation/erosion)
-│       │   ├── ticks.rs     # Tick mark extraction
-│       │   └── tests.rs     # Unit tests
-│       ├── data/
-│       │   ├── mod.rs       # Data detection entry point
-│       │   ├── clustering.rs # Color-based point grouping
-│       │   ├── sampling.rs  # Point sampling on detected curves
-│       │   ├── curve.rs     # Continuous curve detection
-│       │   └── scatter.rs   # Scatter point detection
-│       └── mask/
-│           ├── mod.rs       # Mask painting UI & detection triggering
-│           └── results_panel.rs # Detection results display & interaction
+│   ├── icons.rs             # Icon constants
+│   ├── ui/                  # UI layer (canvas, panels, toolbars, modals)
+│   ├── ide/                 # Script IDE (editor, workspace, inspector, help)
+│   ├── script/              # Rhai scripting engine & math functions
+│   └── recognition/         # CV recognition (axis, data, mask, grid removal)
 ├── assets/                  # App icons (macOS .icns, Windows .ico, PNG)
 ├── example_scripts/         # Built-in script templates (.rhai)
-├── docs/
-│   └── scripting_help.md    # Scripting reference (embedded at build time)
+├── docs/                    # Scripting reference (embedded at build time)
 ├── build.rs                 # Auto-discovers example scripts & embeds Windows icon
 ├── Cargo.toml               # Dependencies and build configuration
-├── sample_plot.png          # Example plot image
 └── screenshot.png           # Application screenshot
 ```
+
+## Third-Party Licenses
+
+- **Sarasa UI SC** — Used for Chinese character rendering. Licensed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL). Source: [Sarasa Gothic](https://github.com/be5invis/Sarasa-Gothic).
 
 ## License
 

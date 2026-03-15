@@ -125,4 +125,7 @@ pub enum Action {
     MaskSetDataMode(usize, crate::state::DataCurveMode),
     MaskSetDataPoints(usize, usize),
     MaskAddData(usize),
+
+    // Language
+    ToggleLang,
 }

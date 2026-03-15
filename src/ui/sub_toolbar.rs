@@ -2,6 +2,7 @@ use eframe::egui;
 use egui::Color32;
 
 use crate::action::Action;
+use crate::i18n::{t, Lang};
 use crate::icons;
 use crate::state::{AppMode, AppState, AxisHighlight, MaskMode, MaskState, MaskTool};
 
@@ -24,6 +25,7 @@ pub fn draw_sub_toolbar(state: &mut AppState, ui: &mut egui::Ui, actions: &mut V
 // ────────────────────────────────────────────────────────────────
 
 fn draw_mask_window(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+    let lang = state.lang;
     let screen = ui.ctx().viewport_rect();
     let window = egui::Window::new("Mask Sub-Toolbar")
         .collapsible(false)
@@ -41,7 +43,7 @@ fn draw_mask_window(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<A
         } else {
             &state.data_mask
         };
-        draw_mask_tools(mask, ui, actions);
+        draw_mask_tools(mask, lang, ui, actions);
 
         // ── Results panel (if results exist) ──
         let mask = if state.axis_mask.active {
@@ -56,18 +58,18 @@ fn draw_mask_window(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<A
         if has_axis || has_data {
             ui.separator();
             match mask.mask_mode {
-                MaskMode::AxisCalib => draw_axis_section(mask, ui, actions),
-                MaskMode::DataRecog => draw_data_section(mask, ui, actions),
+                MaskMode::AxisCalib => draw_axis_section(mask, lang, ui, actions),
+                MaskMode::DataRecog => draw_data_section(mask, lang, ui, actions),
             }
         }
     });
 }
 
-fn draw_mask_tools(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+fn draw_mask_tools(mask: &MaskState, lang: Lang, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
     ui.horizontal(|ui| {
         if ui
-            .selectable_label(mask.tool == MaskTool::Pen, format!("{} Brush", icons::BRUSH))
-            .on_hover_text("Paint mask")
+            .selectable_label(mask.tool == MaskTool::Pen, format!("{} {}", icons::BRUSH, t(lang, "brush")))
+            .on_hover_text(t(lang, "paint_mask"))
             .clicked()
         {
             actions.push(Action::MaskSetTool(MaskTool::Pen));
@@ -75,9 +77,9 @@ fn draw_mask_tools(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Action
         if ui
             .selectable_label(
                 mask.tool == MaskTool::Eraser,
-                format!("{} Eraser", icons::ERASER),
+                format!("{} {}", icons::ERASER, t(lang, "eraser")),
             )
-            .on_hover_text("Erase mask")
+            .on_hover_text(t(lang, "erase_mask"))
             .clicked()
         {
             actions.push(Action::MaskSetTool(MaskTool::Eraser));
@@ -108,9 +110,9 @@ fn draw_mask_tools(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Action
                 egui::Button::new(vis_icon).selected(!mask.visible),
             )
             .on_hover_text(if mask.visible {
-                "Hide mask overlay"
+                t(lang, "hide_mask")
             } else {
-                "Show mask overlay"
+                t(lang, "show_mask")
             })
             .clicked()
         {
@@ -120,7 +122,7 @@ fn draw_mask_tools(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Action
         // Clear button
         if ui
             .button(icons::TRASH)
-            .on_hover_text("Clear all mask")
+            .on_hover_text(t(lang, "clear_mask"))
             .clicked()
         {
             actions.push(Action::MaskClear);
@@ -132,17 +134,17 @@ fn draw_mask_tools(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Action
 //  Axis Results Section
 // ────────────────────────────────────────────────────────────────
 
-fn draw_axis_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+fn draw_axis_section(mask: &MaskState, lang: Lang, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
     if let Some(ref axis_result) = mask.axis_result {
         let has_x = axis_result.x_axis.is_some();
         let has_y = axis_result.y_axis.is_some();
 
         if !has_x && !has_y {
-            ui.label("No axes detected. Paint over axis lines.");
+            ui.label(t(lang, "no_axes_detected"));
             return;
         }
 
-        ui.label(egui::RichText::new("Axes Calibration").strong());
+        ui.label(egui::RichText::new(t(lang, "axes_calibration_title")).strong());
         ui.add_space(2.0);
 
         // X-Axis row
@@ -157,13 +159,13 @@ fn draw_axis_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                 })
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.colored_label(Color32::from_rgb(0x42, 0x85, 0xF4), "X-Axis");
-                        let tick_info = format!("({} ticks)", axis_result.x_ticks.len());
+                        ui.colored_label(Color32::from_rgb(0x42, 0x85, 0xF4), t(lang, "x_axis"));
+                        let tick_info = format!("({} {})", axis_result.x_ticks.len(), t(lang, "ticks"));
                         ui.label(egui::RichText::new(tick_info).small());
                         ui.with_layout(
                             egui::Layout::right_to_left(egui::Align::Center),
                             |ui| {
-                                if ui.button("Apply").clicked() {
+                                if ui.button(t(lang, "apply")).clicked() {
                                     actions.push(Action::MaskApplyAxis(AxisHighlight::X));
                                 }
                             },
@@ -192,13 +194,13 @@ fn draw_axis_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                 })
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.colored_label(Color32::from_rgb(0x34, 0xA8, 0x53), "Y-Axis");
-                        let tick_info = format!("({} ticks)", axis_result.y_ticks.len());
+                        ui.colored_label(Color32::from_rgb(0x34, 0xA8, 0x53), t(lang, "y_axis"));
+                        let tick_info = format!("({} {})", axis_result.y_ticks.len(), t(lang, "ticks"));
                         ui.label(egui::RichText::new(tick_info).small());
                         ui.with_layout(
                             egui::Layout::right_to_left(egui::Align::Center),
                             |ui| {
-                                if ui.button("Apply").clicked() {
+                                if ui.button(t(lang, "apply")).clicked() {
                                     actions.push(Action::MaskApplyAxis(AxisHighlight::Y));
                                 }
                             },
@@ -221,12 +223,12 @@ fn draw_axis_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Acti
 //  Data Results Section
 // ────────────────────────────────────────────────────────────────
 
-fn draw_data_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
-    ui.label(egui::RichText::new("Data Recognition").strong());
+fn draw_data_section(mask: &MaskState, lang: Lang, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+    ui.label(egui::RichText::new(t(lang, "data_recognition")).strong());
     ui.add_space(2.0);
 
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new("Color Tolerance:"));
+        ui.label(egui::RichText::new(t(lang, "color_tolerance")));
         let mut tol = mask.color_tolerance;
         let slider = egui::Slider::new(&mut tol, 10.0..=120.0)
             .step_by(1.0)
@@ -251,7 +253,7 @@ fn draw_data_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Acti
 
     if let Some(ref data_result) = mask.data_result {
         if data_result.groups.is_empty() {
-            ui.label("No data colors detected.");
+            ui.label(t(lang, "no_data_detected"));
             return;
         }
 
@@ -304,8 +306,8 @@ fn draw_data_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Acti
 
                         // Mode selector
                         let mode_label = match group.curve_mode {
-                            crate::state::DataCurveMode::Continuous => "Curve",
-                            crate::state::DataCurveMode::Scatter => "Scatter",
+                            crate::state::DataCurveMode::Continuous => t(lang, "curve"),
+                            crate::state::DataCurveMode::Scatter => t(lang, "scatter"),
                         };
                         let combo_id = egui::Id::new("data_mode").with(idx);
                         egui::ComboBox::from_id_salt(combo_id)
@@ -316,7 +318,7 @@ fn draw_data_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                                     .selectable_label(
                                         group.curve_mode
                                             == crate::state::DataCurveMode::Continuous,
-                                        "Curve",
+                                        t(lang, "curve"),
                                     )
                                     .clicked()
                                 {
@@ -328,7 +330,7 @@ fn draw_data_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                                 if ui
                                     .selectable_label(
                                         group.curve_mode == crate::state::DataCurveMode::Scatter,
-                                        "Scatter",
+                                        t(lang, "scatter"),
                                     )
                                     .clicked()
                                 {
@@ -346,7 +348,7 @@ fn draw_data_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Acti
                                 .add(
                                     egui::DragValue::new(&mut pts)
                                         .range(2..=200)
-                                        .suffix(" Pts"),
+                                        .suffix(t(lang, "pts_suffix")),
                                 )
                                 .changed()
                             {
@@ -356,8 +358,8 @@ fn draw_data_section(mask: &MaskState, ui: &mut egui::Ui, actions: &mut Vec<Acti
 
                         // Add button
                         if ui
-                            .button("Add as Group")
-                            .on_hover_text("Create new group with this color and add points")
+                            .button(t(lang, "add_as_group"))
+                            .on_hover_text(t(lang, "hover_add_group"))
                             .clicked()
                         {
                             actions.push(Action::MaskAddData(idx));
@@ -385,6 +387,7 @@ fn draw_grid_removal_toolbar(
     ui: &mut egui::Ui,
     actions: &mut Vec<Action>,
 ) {
+    let lang = state.lang;
     let screen = ui.ctx().viewport_rect();
     let window = egui::Window::new("Grid Removal")
         .collapsible(false)
@@ -397,10 +400,10 @@ fn draw_grid_removal_toolbar(
         ui.horizontal(|ui| {
             if state.grid_removal.is_computing {
                 ui.spinner();
-                ui.label("Processing...");
+                ui.label(t(lang, "processing"));
             }
 
-            ui.label("Strength:");
+            ui.label(t(lang, "strength"));
             let mut strength = state.grid_removal.strength;
             let slider = egui::Slider::new(&mut strength, 0.0..=1.0).step_by(0.01);
             if ui.add(slider).changed() {
@@ -410,8 +413,8 @@ fn draw_grid_removal_toolbar(
             ui.separator();
 
             if ui
-                .button("Disable")
-                .on_hover_text("Turn off grid removal and restore original image")
+                .button(t(lang, "disable"))
+                .on_hover_text(t(lang, "hover_disable_grid"))
                 .clicked()
             {
                 actions.push(Action::GridRemovalDisable);

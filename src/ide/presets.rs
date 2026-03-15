@@ -1,4 +1,5 @@
 use crate::action::Action;
+use crate::i18n::t;
 use crate::icons;
 use crate::state::AppState;
 use eframe::egui;
@@ -8,8 +9,9 @@ include!(concat!(env!("OUT_DIR"), "/embedded_scripts.rs"));
 
 /// Draw the presets ComboBox and import/export buttons.
 pub fn draw_presets(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+    let lang = state.lang;
     let combo = egui::ComboBox::from_id_salt("script_presets")
-        .selected_text("Script Templates…")
+        .selected_text(t(lang, "script_templates"))
         .width(160.0);
 
     combo.show_ui(ui, |ui| {
@@ -24,7 +26,7 @@ pub fn draw_presets(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<A
         if !state.ide.user_scripts.is_empty() {
             ui.separator();
             ui.label(
-                egui::RichText::new("User Scripts")
+                egui::RichText::new(t(lang, "user_scripts"))
                     .small()
                     .color(egui::Color32::GRAY),
             );
@@ -39,15 +41,15 @@ pub fn draw_presets(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<A
         ui.separator();
 
         // Import
-        if ui.selectable_label(false, "Import Script…").clicked() {
+        if ui.selectable_label(false, t(lang, "import_script")).clicked() {
             import_script(actions);
         }
     });
 
     // Export button
     if ui
-        .button("Export")
-        .on_hover_text("Save current script to a .rhai file")
+        .button(t(lang, "export_btn"))
+        .on_hover_text(t(lang, "hover_export"))
         .clicked()
     {
         export_script(&state.ide.code);
