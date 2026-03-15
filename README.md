@@ -4,6 +4,8 @@ A native, high-performance chart data extraction tool built with **Rust** and **
 
 A free and open-source alternative to [WebPlotDigitizer](https://github.com/automeris-io/WebPlotDigitizer).
 
+English | [中文](README_zh.md)
+
 ![PlotRedox Screenshot](screenshot.png)
 
 ## Features
@@ -15,6 +17,7 @@ A free and open-source alternative to [WebPlotDigitizer](https://github.com/auto
 - Export extracted data to CSV
 - Undo / Redo support
 - Dark and light themes
+- Multi-language UI (English, 中文)
 - Cross-platform (Linux, macOS, Windows)
 
 ### Project Management
@@ -41,8 +44,9 @@ Automatically detect axes and data points using mask-based computer vision, elim
 5. Adjust the number of sampled points and preview before adding to your dataset
 
 #### Grid Removal
-- Automatically detect and remove grid lines from the plot image to improve data recognition accuracy
-- Accessible from the canvas toolbar sub-menu
+- Spatial median-profile detection removes grid lines from the plot image to improve data recognition accuracy
+- Adjustable strength slider (0–1) for fine-tuning
+- Real-time preview with toggle to compare against original image
 
 All recognition modes run on background threads to keep the UI responsive. Mask painting supports Shift+Click for straight lines and constrained-axis painting (horizontal/vertical lock).
 
@@ -214,15 +218,17 @@ PlotRedox/
 │   ├── core.rs              # Calibration math and coordinate mapping
 │   ├── state.rs             # Runtime state & serializable project data
 │   ├── project.rs           # Project save/load (.prdx ZIP format)
-│   ├── icons.rs             # Icon constants
+│   ├── i18n.rs              # Internationalization (English / Chinese)
+│   ├── icons.rs             # Nerd Font icon constants
 │   ├── ui/                  # UI layer (canvas, panels, toolbars, modals)
 │   ├── ide/                 # Script IDE (editor, workspace, inspector, help)
 │   ├── script/              # Rhai scripting engine & math functions
 │   └── recognition/         # CV recognition (axis, data, mask, grid removal)
-├── assets/                  # App icons (macOS .icns, Windows .ico, PNG)
+├── assets/                  # App icon + fonts (Sarasa UI SC for CJK)
 ├── example_scripts/         # Built-in script templates (.rhai)
-├── docs/                    # Scripting reference (embedded at build time)
-├── build.rs                 # Auto-discovers example scripts & embeds Windows icon
+├── docs/                    # Scripting reference (English & Chinese)
+├── build.rs                 # Script embedding, font subsetting, Windows icon
+├── build_font_subset.rs     # CJK font subsetting logic
 ├── Cargo.toml               # Dependencies and build configuration
 └── screenshot.png           # Application screenshot
 ```
