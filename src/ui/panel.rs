@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::Write;
 
 use crate::action::Action;
+use crate::icons;
 use crate::state::{AppMode, AppState};
 
 pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>) {
@@ -29,7 +30,8 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                     ui.colored_label(
                         Color32::RED,
                         format!(
-                            "⚠ Calibrate 4 axes points first ({}/4)",
+                            "{} Calibrate 4 axes points first ({}/4)",
+                            icons::ALERT,
                             state.calib_pts.len()
                         ),
                     );
@@ -42,7 +44,9 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 if ui
                     .add_sized(
                         [ui.available_width(), 24.0],
-                        egui::Button::new("\u{1F4D0} Smart Axis Brush").selected(magic_active),
+                        egui::Button::new(
+                            egui::RichText::new(format!("{}  Smart Axis Brush", icons::AXIS_BRUSH)).strong()
+                                ).selected(magic_active),
                     )
                     .on_hover_text("Auto-detect axes by painting a mask")
                     .clicked()
@@ -171,7 +175,9 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                 if ui
                     .add_sized(
                         [ui.available_width(), 24.0],
-                        egui::Button::new("\u{1F5E0} Smart Data Brush").selected(mask_active),
+                        egui::Button::new(
+                            egui::RichText::new(format!("{}  Smart Data Brush", icons::DATA_BRUSH)).strong()
+                            ).selected(mask_active),
                     )
                     .on_hover_text(
                         "Auto-extract data points using color recognition via a painted mask",
@@ -193,7 +199,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
 
                 ui.horizontal(|ui| {
                     if ui
-                        .add_sized([90.0, 20.0], egui::Button::new("➕ Add Group"))
+                        .add_sized([90.0, 20.0], egui::Button::new(format!("{} Add Group", icons::ADD_GROUP)))
                         .clicked()
                     {
                         actions.push(Action::AddGroup);
@@ -236,7 +242,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                         // Expand/Collapse toggle
                                         let is_collapsed = state.collapsed_groups.contains(&g_idx);
                                         let collapse_icon =
-                                            if is_collapsed { "\u{23F5}" } else { "\u{23F7}" };
+                                            if is_collapsed { icons::CHEVRON_RIGHT } else { icons::CHEVRON_DOWN };
                                         if ui
                                             .button(collapse_icon)
                                             .on_hover_text(if is_collapsed {
@@ -253,9 +259,10 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                             }
                                         }
 
-                                        let mut is_active = state.active_group_idx == g_idx;
+                                        let is_active = state.active_group_idx == g_idx;
+                                        let radio_icon = if is_active { icons::RADIO_ON } else { icons::RADIO_OFF };
                                         if ui
-                                            .toggle_value(&mut is_active, "\u{23FA}")
+                                            .selectable_label(is_active, radio_icon)
                                             .on_hover_text("Set Active Group")
                                             .clicked()
                                         {
@@ -286,7 +293,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                             egui::Layout::right_to_left(egui::Align::Center),
                                             |ui| {
                                                 if ui
-                                                    .button("🗑")
+                                                    .button(icons::TRASH)
                                                     .on_hover_text("Delete Group")
                                                     .clicked()
                                                 {
@@ -370,7 +377,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                                 ui.painter().text(
                                                     handle_rect.center(),
                                                     egui::Align2::CENTER_CENTER,
-                                                    "☰",
+                                                    icons::DRAG_HANDLE,
                                                     egui::FontId::proportional(14.0),
                                                     Color32::DARK_GRAY,
                                                 );
@@ -491,7 +498,7 @@ pub fn draw_panel(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<A
                                                     }
                                                 }
 
-                                                let mut btn_text = egui::RichText::new("🗑");
+                                                let mut btn_text = egui::RichText::new(icons::TRASH);
                                                 if is_selected {
                                                     btn_text = btn_text.color(group.color);
                                                 } else if is_hovered {

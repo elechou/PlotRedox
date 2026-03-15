@@ -5,6 +5,7 @@ pub mod presets;
 pub mod workspace;
 
 use crate::action::Action;
+use crate::icons;
 use crate::state::AppState;
 use eframe::egui;
 
@@ -35,7 +36,7 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
 
                 // ▶ Run Script (green triangle)
                 let run_btn = egui::Button::new(
-                    egui::RichText::new("▶ Run Script")
+                    egui::RichText::new(format!("{} Run Script", icons::PLAY))
                         .color(egui::Color32::from_rgb(0x4E, 0xC9, 0x4E))
                         .strong(),
                 )
@@ -47,7 +48,7 @@ pub fn draw_ide(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Act
                 // Right-aligned: Help, then Script IDE heading, then presets/export
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Rightmost: Help
-                    if ui.button("\u{2139} Help").clicked() {
+                    if ui.button(format!("{} Help", icons::HELP_CIRCLE)).clicked() {
                         actions.push(Action::ToggleHelp);
                     }
                 });

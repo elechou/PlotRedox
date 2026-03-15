@@ -1,4 +1,5 @@
 use crate::action::Action;
+use crate::icons;
 use crate::state::AppState;
 use eframe::egui;
 
@@ -82,7 +83,6 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
             }
 
             if ui
-                // .button("\u{1F4BE}")
                 .button("Save Project")
                 .on_hover_text("Save Project")
                 .clicked()
@@ -93,7 +93,7 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
             // Right-aligned Tools
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .selectable_label(state.ide.is_open, "\u{1F5B3} Script IDE")
+                    .selectable_label(state.ide.is_open, format!("{} Script IDE", icons::CODE))
                     .clicked()
                 {
                     actions.push(Action::ToggleIDE);
@@ -101,7 +101,7 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
 
                 // ── Quick-Access Toolbar Buttons ──────────────────────
                 let is_dark = ctx.style().visuals.dark_mode;
-                let icon = if is_dark { "\u{1F506}" } else { "\u{1F319}" };
+                let icon = if is_dark { icons::SUN } else { icons::MOON };
                 if ui.button(icon).on_hover_text("Toggle Theme").clicked() {
                     if is_dark {
                         ctx.set_visuals(egui::Visuals::light());

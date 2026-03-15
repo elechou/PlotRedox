@@ -3,6 +3,7 @@
 pub mod action;
 mod action_handler;
 mod core;
+pub mod icons;
 mod ide;
 mod project;
 mod recognition;
@@ -27,10 +28,30 @@ impl Default for PlotRedoxApp {
 
 impl PlotRedoxApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // Load Nerd Font symbols as fallback font
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "nerd_symbols".to_owned(),
+            std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+                "../assets/SymbolsNerdFontMono-Regular.ttf"
+            ))),
+        );
+        // Add as fallback to both Proportional and Monospace families
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Proportional)
+            .unwrap()
+            .push("nerd_symbols".to_owned());
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Monospace)
+            .unwrap()
+            .push("nerd_symbols".to_owned());
+        cc.egui_ctx.set_fonts(fonts);
+
         // Customize look
         let mut style = (*cc.egui_ctx.style()).clone();
         style.visuals = egui::Visuals::light();
-        // style.visuals = egui::Visuals::dark();
         cc.egui_ctx.set_style(style);
 
         Self::default()

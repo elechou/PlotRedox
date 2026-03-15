@@ -6,6 +6,7 @@ use egui::{Color32, ColorImage, Pos2, Rect, Stroke, TextureOptions};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::action::Action;
+use crate::icons;
 use crate::state::{AppState, AxisHighlight, CachedHighlight, MaskState, MaskTool, PixelBounds};
 
 // ────────────────────────────────────────────────────────────────
@@ -32,14 +33,14 @@ pub fn draw_mask_toolbar(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<
     window.show(ui.ctx(), |ui| {
         ui.horizontal(|ui| {
             if ui
-                .selectable_label(mask.tool == MaskTool::Pen, "\u{270F} Pen")
+                .selectable_label(mask.tool == MaskTool::Pen, format!("{} Brush", icons::BRUSH))
                 .on_hover_text("Paint mask")
                 .clicked()
             {
                 actions.push(Action::MaskSetTool(MaskTool::Pen));
             }
             if ui
-                .selectable_label(mask.tool == MaskTool::Eraser, "\u{1F4D7} Eraser")
+                .selectable_label(mask.tool == MaskTool::Eraser, format!("{} Eraser", icons::ERASER))
                 .on_hover_text("Erase mask")
                 .clicked()
             {
@@ -61,9 +62,9 @@ pub fn draw_mask_toolbar(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<
 
             // Icon-only visibility toggle
             let vis_icon = if mask.visible {
-                "\u{1F441}"
+                icons::EYE
             } else {
-                "\u{1F6AB}"
+                icons::EYE_OFF
             };
 
             if ui
@@ -82,7 +83,7 @@ pub fn draw_mask_toolbar(state: &AppState, ui: &mut egui::Ui, actions: &mut Vec<
             }
 
             // Icon-only clear button
-            if ui.button("🗑").on_hover_text("Clear all mask").clicked() {
+            if ui.button(icons::TRASH).on_hover_text("Clear all mask").clicked() {
                 actions.push(Action::MaskClear);
             }
         });

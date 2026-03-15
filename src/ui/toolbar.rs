@@ -1,4 +1,5 @@
 use crate::action::Action;
+use crate::icons;
 use crate::state::{AppMode, AppState};
 use eframe::egui;
 
@@ -17,7 +18,10 @@ pub fn draw_toolbar(
     window.show(ui.ctx(), |ui| {
         ui.horizontal(|ui| {
             if ui
-                .selectable_label(state.mode == AppMode::Select, "\u{2196} Select")
+                .selectable_label(
+                    state.mode == AppMode::Select,
+                    format!("{} Select", icons::CURSOR_DEFAULT),
+                )
                 .on_hover_text("Select & Drag")
                 .clicked()
             {
@@ -25,7 +29,10 @@ pub fn draw_toolbar(
                 actions.push(Action::ClearSelection);
             }
             if ui
-                .selectable_label(state.mode == AppMode::AddData, "\u{2795} Add Data")
+                .selectable_label(
+                    state.mode == AppMode::AddData,
+                    format!("{} Add Data", icons::PLUS),
+                )
                 .on_hover_text("Pick new points")
                 .clicked()
             {
@@ -33,7 +40,10 @@ pub fn draw_toolbar(
             }
 
             if ui
-                .selectable_label(state.mode == AppMode::Delete, "\u{2796} Delete")
+                .selectable_label(
+                    state.mode == AppMode::Delete,
+                    format!("{} Delete", icons::MINUS),
+                )
                 .on_hover_text("Click points to delete them")
                 .clicked()
             {
@@ -43,7 +53,10 @@ pub fn draw_toolbar(
             let magic_active = state.axis_mask.active
                 && state.axis_mask.mask_mode == crate::state::MaskMode::AxisCalib;
             if ui
-                .selectable_label(magic_active, "\u{1F4D0} Axis Brush")
+                .selectable_label(
+                    magic_active,
+                    format!("{} Axis Brush", icons::AXIS_BRUSH),
+                )
                 .on_hover_text("Auto-detect axes by painting a mask")
                 .clicked()
             {
@@ -53,7 +66,10 @@ pub fn draw_toolbar(
             let mask_active = state.data_mask.active
                 && state.data_mask.mask_mode == crate::state::MaskMode::DataRecog;
             if ui
-                .selectable_label(mask_active, "\u{1F5E0} Data Brush")
+                .selectable_label(
+                    mask_active,
+                    format!("{} Data Brush", icons::DATA_BRUSH),
+                )
                 .on_hover_text(
                     "Auto-extract data points using color recognition via a painted mask",
                 )
@@ -64,7 +80,10 @@ pub fn draw_toolbar(
 
             let grid_active = state.mode == AppMode::GridRemoval;
             if ui
-                .selectable_label(grid_active, "# Grid")
+                .selectable_label(
+                    grid_active,
+                    format!("{} Grid", icons::GRID),
+                )
                 .on_hover_text("Remove grid lines from image using FFT filtering")
                 .clicked()
             {
@@ -75,7 +94,7 @@ pub fn draw_toolbar(
             if ui
                 .selectable_label(
                     state.mode == AppMode::Pan || is_space_pressed,
-                    "\u{270B} Pan",
+                    format!("{} Pan", icons::HAND),
                 )
                 .on_hover_text("Left-click and drag to pan canvas (or hold Space)")
                 .clicked()
@@ -83,7 +102,7 @@ pub fn draw_toolbar(
                 actions.push(Action::SetMode(AppMode::Pan));
             }
             if ui
-                .button("⛶ Center")
+                .button(format!("{} Center", icons::FIT_SCREEN))
                 .on_hover_text("Center canvas to fit window")
                 .clicked()
             {
@@ -110,16 +129,16 @@ pub fn draw_grid_removal_toolbar(
 
     window.show(ui.ctx(), |ui| {
         ui.horizontal(|ui| {
+            if state.grid_removal.is_computing {
+                ui.spinner();
+                ui.label("Processing...");
+            }
+            
             ui.label("Strength:");
             let mut strength = state.grid_removal.strength;
             let slider = egui::Slider::new(&mut strength, 0.0..=1.0).step_by(0.01);
             if ui.add(slider).changed() {
                 actions.push(Action::GridRemovalSetStrength(strength));
-            }
-
-            if state.grid_removal.is_computing {
-                ui.spinner();
-                ui.label("Processing...");
             }
 
             ui.separator();

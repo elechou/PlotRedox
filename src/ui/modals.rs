@@ -1,4 +1,5 @@
 use crate::action::Action;
+use crate::icons;
 use crate::state::AppState;
 use eframe::egui;
 
@@ -10,7 +11,7 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
         let modal = egui::Modal::new(egui::Id::new("modal_unsaved")).show(ctx, |ui| {
             ui.set_width(380.0);
             ui.vertical_centered(|ui| {
-                ui.heading("⚠ Unsaved Changes");
+                ui.heading(format!("{} Unsaved Changes", icons::ALERT));
             });
             ui.add_space(8.0);
             ui.label("Your project has unsaved changes.");
@@ -62,7 +63,7 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
             let modal = egui::Modal::new(egui::Id::new("modal_load_image")).show(ctx, |ui| {
                 ui.set_width(350.0);
                 ui.vertical_centered(|ui| {
-                    ui.heading("⚠ Warning");
+                    ui.heading(format!("{} Warning", icons::ALERT));
                 });
                 ui.add_space(8.0);
                 ui.label("Loading a new image will clear your current workspace.");
@@ -103,7 +104,7 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
         let modal = egui::Modal::new(egui::Id::new("modal_clear_data")).show(ctx, |ui| {
             ui.set_width(350.0);
             ui.vertical_centered(|ui| {
-                ui.heading("⚠ Clear Data");
+                ui.heading(format!("{} Clear Data", icons::ALERT));
             });
             ui.add_space(8.0);
             ui.label("Are you sure you want to clear all extracted data points?");
@@ -138,7 +139,7 @@ pub fn draw(state: &mut AppState, ctx: &egui::Context, actions: &mut Vec<Action>
         let modal = egui::Modal::new(egui::Id::new("modal_clipboard_empty")).show(ctx, |ui| {
             ui.set_width(320.0);
             ui.vertical_centered(|ui| {
-                ui.heading("ℹ No Image Found");
+                ui.heading(format!("{} No Image Found", icons::INFO));
             });
             ui.add_space(8.0);
             ui.label("No image was found in the clipboard.");

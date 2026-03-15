@@ -1,4 +1,5 @@
 use crate::action::Action;
+use crate::icons;
 use crate::state::AppState;
 use eframe::egui;
 
@@ -29,7 +30,7 @@ pub fn draw_presets(state: &mut AppState, ui: &mut egui::Ui, actions: &mut Vec<A
             );
             let user_scripts = state.ide.user_scripts.clone();
             for (name, code) in &user_scripts {
-                if ui.selectable_label(false, format!("📄 {}", name)).clicked() {
+                if ui.selectable_label(false, format!("{} {}", icons::FILE, name)).clicked() {
                     actions.push(Action::LoadPresetScript(code.clone()));
                 }
             }
