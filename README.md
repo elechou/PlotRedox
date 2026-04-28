@@ -38,15 +38,19 @@ Automatically detect axes and data points using mask-based computer vision, elim
 
 #### Data Recognition
 1. Switch to **Data Mask** mode from the canvas toolbar
-2. Paint a mask over the data region
-3. The engine performs color-based clustering to separate different data series
-4. For each detected color group, choose between **Continuous** (curve sampling) or **Scatter** (point detection) mode
-5. Adjust the number of sampled points and preview before adding to your dataset
+2. (Optional) Enable **Grid Removal** in the sub-toolbar to suppress grid lines before recognition
+3. Paint a mask over the data region
+4. The engine performs color-based clustering to separate different data series
+5. For each detected color group, choose between **Continuous** (curve sampling) or **Scatter** (point detection) mode
+6. Intelligent handling of both open curves and closed shapes (circles, ellipses) via arc-length closure detection and adaptive component thinning
+7. Adjust the number of sampled points and preview before adding to your dataset
 
 #### Grid Removal
+- Integrated directly into the **Data Mask** sub-toolbar — no separate mode required
 - Spatial median-profile detection removes grid lines from the plot image to improve data recognition accuracy
 - Adjustable strength slider (0–1) for fine-tuning
 - Real-time preview with toggle to compare against original image
+- Axis detection always uses the original image; grid removal only affects data recognition
 
 All recognition modes run on background threads to keep the UI responsive. Mask painting supports Shift+Click for straight lines and constrained-axis painting (horizontal/vertical lock).
 
@@ -70,6 +74,12 @@ Scripts have access to a rich set of built-in functions:
 | Array | `sum`, `mean`, `min_val`, `max_val`, `std_dev`, `variance`, `log10_array` |
 | Data | `col(array, "field")`, `extract_number(string)` |
 | Regression | `linreg(x, y)`, `polyfit(x, y, degree)`, `lstsq(A, b)` |
+
+## Roadmap & Known Issues
+
+| Status | Item |
+|--------|------|
+| 🚧 In Progress | **Closed-loop / ring-shaped curve recognition** — Recent improvements (arc-length closure detection, adaptive component thinning) already handle solid circles and ellipses well, but *annular* (ring-shaped) curves remain unreliable. This is an active area of work. |
 
 ## Installation
 
@@ -154,9 +164,10 @@ Sample images (`sample_plot_1.png`, `sample_plot_2.png`) and a sample project (`
 **Automatic extraction (CV-assisted):**
 
 1. Switch to **Data Mask** mode in the canvas toolbar.
-2. Paint over the data region.
-3. Review detected color groups — choose curve mode (Continuous/Scatter) and point count.
-4. Click **Add** to import detected points into your dataset.
+2. (Optional) Enable **Grid Removal** in the sub-toolbar if the plot has grid lines — adjust strength and preview the cleaned image.
+3. Paint over the data region.
+4. Review detected color groups — choose curve mode (Continuous/Scatter) and point count.
+5. Click **Add** to import detected points into your dataset.
 
 ### Step 4 – Organize & export
 
