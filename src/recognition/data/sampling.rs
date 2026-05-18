@@ -10,8 +10,8 @@ use super::super::spatial::split_into_connected_components;
 // ----------------------------------------------------------------
 
 /// Sample N points along a pixel cluster using arc-length parameterization.
-/// Handles disconnected fragments (dashed lines), closed curves (ellipses),
-/// and multi-valued curves uniformly.
+/// Handles disconnected fragments (dashed lines) and multi-valued curves uniformly.
+/// All curves are treated as open — no closed-loop detection.
 pub fn sample_points_from_cluster(pixels: &[(u32, u32)], n: usize, w: u32) -> Vec<(f32, f32)> {
     sample_points_arc_length(pixels, n, w)
 }
@@ -48,11 +48,7 @@ fn sample_points_arc_length(pixels: &[(u32, u32)], n: usize, _w: u32) -> Vec<(f3
             .collect();
     }
 
-    if is_chain_closed(&chain, total_length) {
-        sample_closed(&chain, &arcs, total_length, n)
-    } else {
-        sample_open(&chain, &arcs, total_length, n)
-    }
+    sample_open(&chain, &arcs, total_length, n)
 }
 
 /// Compute cumulative arc lengths along a chain.
@@ -65,46 +61,6 @@ fn compute_arc_lengths(chain: &[(u32, u32)]) -> Vec<f32> {
         arcs.push(arcs[i - 1] + (dx * dx + dy * dy).sqrt());
     }
     arcs
-}
-
-/// Detect whether a chain forms a closed loop.
-/// Uses two checks:
-/// 1. The gap between first and last point must be small relative to total arc length.
-/// 2. The net turning angle must exceed π — a truly closed curve (circle, ellipse)
-///    accumulates ≈ ±2π of turning, while a U-shaped or hyperbolic curve that
-///    doubles back accumulates ≈ 0.
-fn is_chain_closed(chain: &[(u32, u32)], total_length: f32) -> bool {
-    if chain.len() < 6 {
-        return false;
-    }
-    let first = chain[0];
-    let last = *chain.last().unwrap();
-    let close_dist = ((first.0 as f32 - last.0 as f32).powi(2)
-        + (first.1 as f32 - last.1 as f32).powi(2))
-    .sqrt();
-    if close_dist >= total_length * 0.10 {
-        return false;
-    }
-
-    // Reject curves that double back (U-shape / hyperbola) by checking winding
-    let net = net_turning_angle(chain);
-    net.abs() > std::f32::consts::PI
-}
-
-/// Compute the net (signed) turning angle along a chain.
-/// Down-samples to ≤60 points to reduce pixel-level noise.
-fn net_turning_angle(chain: &[(u32, u32)]) -> f32 {
-    let step = (chain.len() / 60).max(1);
-    let pts: Vec<(u32, u32)> = chain.iter().step_by(step).copied().collect();
-    let mut total = 0.0f32;
-    for i in 1..pts.len().saturating_sub(1) {
-        let dx1 = pts[i].0 as f32 - pts[i - 1].0 as f32;
-        let dy1 = pts[i].1 as f32 - pts[i - 1].1 as f32;
-        let dx2 = pts[i + 1].0 as f32 - pts[i].0 as f32;
-        let dy2 = pts[i + 1].1 as f32 - pts[i].1 as f32;
-        total += (dx1 * dy2 - dy1 * dx2).atan2(dx1 * dx2 + dy1 * dy2);
-    }
-    total
 }
 
 /// Sample N points uniformly along an open chain.
@@ -122,39 +78,6 @@ fn sample_open(
             i as f32 * total_length / (n - 1) as f32
         };
         sampled.push(interpolate_at_arc(chain, arcs, target));
-    }
-    sampled
-}
-
-/// Sample N points uniformly around a closed loop.
-/// Points are distributed evenly around the full perimeter (including the
-/// closing segment from last back to first), with no duplicate at the seam.
-fn sample_closed(
-    chain: &[(u32, u32)],
-    arcs: &[f32],
-    total_length: f32,
-    n: usize,
-) -> Vec<(f32, f32)> {
-    let first = chain[0];
-    let last = *chain.last().unwrap();
-    let close_len = ((first.0 as f32 - last.0 as f32).powi(2)
-        + (first.1 as f32 - last.1 as f32).powi(2))
-    .sqrt();
-    let loop_length = total_length + close_len;
-
-    let mut sampled = Vec::with_capacity(n);
-    for i in 0..n {
-        let target = i as f32 * loop_length / n as f32; // N intervals, not N-1
-
-        if target <= total_length {
-            sampled.push(interpolate_at_arc(chain, arcs, target));
-        } else {
-            // In the closing segment (last → first)
-            let t = (target - total_length) / close_len;
-            let x = last.0 as f32 + t * (first.0 as f32 - last.0 as f32);
-            let y = last.1 as f32 + t * (first.1 as f32 - last.1 as f32);
-            sampled.push((x, y));
-        }
     }
     sampled
 }
@@ -485,8 +408,8 @@ fn order_component_with_axis(points: &[(u32, u32)], axis: DominantAxis) -> Vec<(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_pixel_chains, cluster_values, interpolate_gap, is_chain_closed,
-        sample_points_from_cluster, thin_component_with_axis,
+        build_pixel_chains, cluster_values, interpolate_gap, sample_points_from_cluster,
+        thin_component_with_axis,
     };
 
     #[test]
@@ -639,8 +562,8 @@ mod tests {
     }
 
     #[test]
-    fn sample_closed_curve_covers_full_loop() {
-        // Build a simple circle-like closed curve
+    fn sample_circle_curve() {
+        // Build a simple circle-like curve, sampled as open
         let mut pixels = Vec::new();
         let cx = 50.0_f32;
         let cy = 50.0_f32;
@@ -751,49 +674,8 @@ mod tests {
     }
 
     #[test]
-    fn u_shaped_chain_not_detected_as_closed() {
-        // Directly test is_chain_closed with a U-shaped chain.
-        // The chain traces down one arm, across, and back up — endpoints are close
-        // but the turning angle rejects closure.
-        let mut chain: Vec<(u32, u32)> = Vec::new();
-        // Down the left arm
-        for y in 0..200 {
-            chain.push((10, y));
-        }
-        // Across the bottom
-        for x in 10..=50 {
-            chain.push((x, 200));
-        }
-        // Up the right arm
-        for y in (0..200).rev() {
-            chain.push((50, y));
-        }
-
-        let arcs = super::compute_arc_lengths(&chain);
-        let total_length = *arcs.last().unwrap();
-
-        // Endpoints (10,0) and (50,0): distance=40, arc≈440, ratio≈9% < 10%
-        let first = chain[0];
-        let last = *chain.last().unwrap();
-        let close_dist = ((first.0 as f32 - last.0 as f32).powi(2)
-            + (first.1 as f32 - last.1 as f32).powi(2))
-        .sqrt();
-        assert!(
-            close_dist < total_length * 0.10,
-            "prerequisite: endpoints should be close (dist={}, 10%arc={})",
-            close_dist,
-            total_length * 0.10
-        );
-
-        // Turning angle rejects this as closed
-        assert!(
-            !is_chain_closed(&chain, total_length),
-            "U-shape must NOT be detected as closed"
-        );
-    }
-
-    #[test]
-    fn circle_still_detected_as_closed() {
+    fn circle_sampled_as_open() {
+        // Circle is now always sampled as open. Points should still lie near the circle.
         let mut pixels = Vec::new();
         let cx = 50.0_f32;
         let cy = 50.0_f32;
@@ -807,25 +689,28 @@ mod tests {
         pixels.sort();
         pixels.dedup();
 
-        let chains = build_pixel_chains(&pixels);
-        assert_eq!(chains.len(), 1);
-        let chain = &chains[0];
+        let sampled = sample_points_from_cluster(&pixels, 12, 128);
+        assert_eq!(sampled.len(), 12);
 
-        let arcs = super::compute_arc_lengths(chain);
-        let total_length = *arcs.last().unwrap();
-
-        assert!(
-            is_chain_closed(chain, total_length),
-            "circle must be detected as closed"
-        );
+        // All points should be roughly on the circle
+        for &(x, y) in &sampled {
+            let dist = ((x - cx).powi(2) + (y - cy).powi(2)).sqrt();
+            assert!(
+                (dist - r).abs() < 5.0,
+                "point ({}, {}) dist {} from center, expected ~{}",
+                x,
+                y,
+                dist,
+                r
+            );
+        }
     }
 
     #[test]
-    fn parabola_not_detected_as_closed() {
+    fn parabola_sampled_as_open_curve() {
         // Simulate a thick parabola y = 6 - 4x + 0.5x² in pixel space.
-        // In image coords: px = dx * scale_x, py = y_offset - dy * scale_y (y inverted).
-        // Height > Width in pixels, so bounding-box would pick vertical axis (wrong).
         // The axis selection should pick horizontal (fewer multi-valued entries).
+        // Sampled points should all lie on the parabola.
         let mut pixels = Vec::new();
         let scale_x = 80.0_f32;
         let scale_y = 50.0_f32;
@@ -857,7 +742,7 @@ mod tests {
         let sampled = sample_points_from_cluster(&pixels, 20, 800);
         assert_eq!(sampled.len(), 20);
 
-        // All sampled points should be roughly on the parabola, not in the closing segment
+        // All sampled points should be roughly on the parabola
         for &(sx, sy) in &sampled {
             let dx = sx / scale_x;
             let expected_dy = 6.0 - 4.0 * dx + 0.5 * dx * dx;

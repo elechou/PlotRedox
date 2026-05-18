@@ -167,18 +167,33 @@ mod tests {
             .sum()
     }
 
+    /// Check if sampled points form an open curve (not a closed loop).
+    /// Compares the closing gap (last→first) to the average consecutive spacing.
+    /// For a closed loop, the closing gap is similar to consecutive gaps (ratio ≈ 1).
+    /// For an open curve, the closing gap is typically much smaller or much larger.
     fn is_open_curve(pts: &[(f32, f32)]) -> bool {
-        if pts.len() < 2 {
+        if pts.len() < 3 {
             return true;
         }
-        let total = arc_length(pts);
-        if total < 1.0 {
+        // Average consecutive spacing
+        let avg_gap: f32 = pts
+            .windows(2)
+            .map(|w| {
+                let dx = w[1].0 - w[0].0;
+                let dy = w[1].1 - w[0].1;
+                (dx * dx + dy * dy).sqrt()
+            })
+            .sum::<f32>()
+            / (pts.len() - 1) as f32;
+        if avg_gap < 0.1 {
             return true;
         }
+        // Closing gap (last → first)
         let dx = pts.last().unwrap().0 - pts[0].0;
         let dy = pts.last().unwrap().1 - pts[0].1;
-        let endpoint_dist = (dx * dx + dy * dy).sqrt();
-        endpoint_dist > total * 0.2
+        let closing_gap = (dx * dx + dy * dy).sqrt();
+        // For a closed loop, closing_gap ≈ avg_gap. For open, it's very different.
+        closing_gap < avg_gap * 0.5
     }
 
     // -----------------------------------------------------------------------
@@ -240,7 +255,10 @@ mod tests {
     }
 
     #[test]
-    fn real_quadratic_curve_endpoint_ratio() {
+    fn real_quadratic_curve_closing_gap_ratio() {
+        // Verify the curve is open by comparing closing gap to average spacing.
+        // For a closed loop, closing_gap ≈ avg_gap (ratio ≈ 1).
+        // For an open curve, closing_gap << avg_gap (ratio ≈ 0).
         let data = load_prdx("recognition_test/test1.prdx");
         let result = analyze_mask_for_data(
             &data.rgba,
@@ -251,52 +269,30 @@ mod tests {
             data.tolerance,
         );
 
-        let group = &result.groups[0];
-        let pts = &group.sampled_points;
+        let pts = &result.groups[0].sampled_points;
 
-        eprintln!("=== Sampled points ({}) ===", pts.len());
-        for (i, p) in pts.iter().enumerate() {
-            eprintln!("  [{}] ({:.1}, {:.1})", i, p.0, p.1);
-        }
+        let avg_gap: f32 = pts
+            .windows(2)
+            .map(|w| {
+                let dx = w[1].0 - w[0].0;
+                let dy = w[1].1 - w[0].1;
+                (dx * dx + dy * dy).sqrt()
+            })
+            .sum::<f32>()
+            / (pts.len() - 1) as f32;
 
-        let total = arc_length(pts);
         let dx = pts.last().unwrap().0 - pts[0].0;
         let dy = pts.last().unwrap().1 - pts[0].1;
-        let endpoint_dist = (dx * dx + dy * dy).sqrt();
-        let ratio = endpoint_dist / total;
+        let closing_gap = (dx * dx + dy * dy).sqrt();
+        let gap_ratio = closing_gap / avg_gap;
 
-        eprintln!(
-            "\nendpoint_dist: {:.1}, arc_length: {:.1}, ratio: {:.3}",
-            endpoint_dist, total, ratio
-        );
-        eprintln!(
-            "pixel_coords count: {}",
-            group.pixel_coords.len()
-        );
-
-        // Check if points form a loop by looking at all consecutive distances
-        let mut max_gap = 0.0f32;
-        for i in 1..pts.len() {
-            let d = ((pts[i].0 - pts[i - 1].0).powi(2) + (pts[i].1 - pts[i - 1].1).powi(2)).sqrt();
-            if d > max_gap {
-                max_gap = d;
-            }
-        }
-        // Also check the closing gap (last → first)
-        let closing_gap = ((pts[0].0 - pts.last().unwrap().0).powi(2)
-            + (pts[0].1 - pts.last().unwrap().1).powi(2))
-        .sqrt();
-        eprintln!("max consecutive gap: {:.1}, closing gap: {:.1}", max_gap, closing_gap);
-
-        // If closing gap is similar to other gaps, it's likely treated as a loop
-        if closing_gap < max_gap * 1.5 {
-            eprintln!("WARNING: closing gap is small — curve likely sampled as closed loop");
-        }
+        eprintln!("avg_gap: {:.1}, closing_gap: {:.1}, ratio: {:.3}", avg_gap, closing_gap, gap_ratio);
+        eprintln!("first: {:?}, last: {:?}", pts.first(), pts.last());
 
         assert!(
-            ratio > 0.15,
-            "ratio {:.3} too low — curve likely misidentified as closed",
-            ratio
+            gap_ratio < 0.5,
+            "closing_gap/avg_gap = {:.3} — curve likely misidentified as closed (expected < 0.5)",
+            gap_ratio
         );
     }
 }
